@@ -21,11 +21,29 @@ export const routeRegistry = [
     navLabel: 'Login',
   },
   {
+    path: '/register',
+    page: 'RegisterPage',
+    layout: 'public',
+    access: 'logged-out',
+  },
+  {
+    path: '/forgot-password',
+    page: 'ForgotPasswordPage',
+    layout: 'public',
+    access: 'logged-out',
+  },
+  {
+    path: '/reset-password',
+    page: 'ResetPasswordPage',
+    layout: 'public',
+    access: 'logged-out',
+  },
+  {
     path: '/dashboard',
     page: 'DashboardPage',
     layout: 'app',
     access: 'logged-in',
-    showInNav: ['user', 'staff', 'admin'],
+    showInNav: ['player', 'staff', 'admin'],
     navLabel: 'Dashboard',
   },
   {
@@ -33,8 +51,6 @@ export const routeRegistry = [
     page: 'CharacterCreatePage',
     layout: 'app',
     access: 'logged-in',
-    showInNav: ['user', 'staff', 'admin'],
-    navLabel: 'Create Character',
   },
   {
     path: '/characters/:characterId/edit',
@@ -83,15 +99,13 @@ export const routeRegistry = [
     page: 'AdminDashboardPage',
     layout: 'app',
     access: 'admin',
-    showInNav: ['admin'],
-    navLabel: 'Admin',
   },
   {
     path: '/admin/skills',
     page: 'SkillManagementPage',
     layout: 'app',
     access: 'admin',
-    showInNav: ['admin'],
+    showInNav: ['player', 'staff', 'admin'],
     navLabel: 'Skills',
   },
   {
@@ -99,7 +113,7 @@ export const routeRegistry = [
     page: 'ItemManagementPage',
     layout: 'app',
     access: 'admin',
-    showInNav: ['admin'],
+    showInNav: ['player', 'staff', 'admin'],
     navLabel: 'Items',
   },
   {
@@ -116,23 +130,31 @@ export function getRoutesByLayout(layout) {
   return routeRegistry.filter((route) => route.layout === layout)
 }
 
+export function getDashboardPath(userType) {
+  return userType === 'admin' ? '/admin' : '/dashboard'
+}
+
 export function getNavLinks(userType) {
   return routeRegistry
     .filter((route) => route.showInNav?.includes(userType))
     .map((route) => ({
       label: route.navLabel,
-      path: route.path,
+      path: route.path === '/dashboard' ? getDashboardPath(userType) : route.path,
     }))
 }
 
 export function getUserMenuItems(userType) {
-  if (userType === 'guest') {
-    return [{ label: 'Login', path: '/login' }]
+  if (!userType || userType === 'guest') {
+    return [
+      { label: 'Login', path: '/login' },
+      { label: 'Force sign out', action: 'force-logout' },
+    ]
   }
 
   return [
-    { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Logout', path: '/login' },
+    { label: 'Dashboard', path: getDashboardPath(userType) },
+    { label: 'Logout', action: 'logout' },
+    { label: 'Force sign out', action: 'force-logout' },
   ]
 }
 

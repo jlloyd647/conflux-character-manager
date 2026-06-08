@@ -2,31 +2,28 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import AuthFormCard from '../components/AuthFormCard'
 import { useAuth } from '../hooks/useAuth'
-import { login } from '../services/authService'
+import { requestPasswordReset } from '../services/authService'
 import { getDashboardPath } from '../routes/routeRegistry'
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { isAuthenticated, userType, loading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
-  const [submitError, setSubmitError] = useState('')
-  const successMessage = location.state?.passwordReset
-    ? 'Your password has been updated. Sign in with your new password.'
-    : ''
+  const [submitError, setSubmitError] = useState(location.state?.error ?? '')
+  const [successMessage, setSuccessMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (location.state?.passwordReset) {
+    if (location.state?.error) {
       navigate(location.pathname, { replace: true, state: null })
     }
-  }, [location.pathname, location.state?.passwordReset, navigate])
+  }, [location.pathname, location.state?.error, navigate])
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -43,10 +40,6 @@ export default function LoginPage() {
       errors.email = 'Please enter a valid email address.'
     }
 
-    if (!password) {
-      errors.password = 'Password is required.'
-    }
-
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -54,6 +47,7 @@ export default function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     setSubmitError('')
+    setSuccessMessage('')
 
     if (!validateForm()) {
       return
@@ -62,8 +56,11 @@ export default function LoginPage() {
     setSubmitting(true)
 
     try {
-      await login({ email: email.trim(), password })
-      navigate('/dashboard', { replace: true })
+      await requestPasswordReset({ email: email.trim() })
+      setSuccessMessage(
+        'If an account exists for that email, a password reset link has been sent.',
+      )
+      setEmail('')
     } catch (error) {
       setSubmitError(error.message)
     } finally {
@@ -76,7 +73,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthFormCard title="Sign in" subtitle="Welcome back to Conflux">
+    <AuthFormCard title="Forgot password" subtitle="Enter your email to receive a reset link">
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {submitError ? (
           <p className="auth-form-error" role="alert">
@@ -91,61 +88,35 @@ export default function LoginPage() {
         ) : null}
 
         <div className="auth-form-field">
-          <label className="auth-form-label" htmlFor="login-email">
+          <label className="auth-form-label" htmlFor="forgot-password-email">
             Email
           </label>
           <input
-            id="login-email"
+            id="forgot-password-email"
             className="auth-form-input"
             type="email"
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             aria-invalid={Boolean(fieldErrors.email)}
-            aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
+            aria-describedby={fieldErrors.email ? 'forgot-password-email-error' : undefined}
           />
           {fieldErrors.email ? (
-            <p className="auth-form-field-error" id="login-email-error" role="alert">
+            <p className="auth-form-field-error" id="forgot-password-email-error" role="alert">
               {fieldErrors.email}
             </p>
           ) : null}
         </div>
 
-        <div className="auth-form-field">
-          <label className="auth-form-label" htmlFor="login-password">
-            Password
-          </label>
-          <input
-            id="login-password"
-            className="auth-form-input"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={Boolean(fieldErrors.password)}
-            aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
-          />
-          {fieldErrors.password ? (
-            <p className="auth-form-field-error" id="login-password-error" role="alert">
-              {fieldErrors.password}
-            </p>
-          ) : null}
-          <p className="auth-form-helper">
-            <Link className="auth-form-link" to="/forgot-password">
-              Forgot password?
-            </Link>
-          </p>
-        </div>
-
         <button className="auth-form-submit" type="submit" disabled={submitting}>
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? 'Sending reset link…' : 'Send reset link'}
         </button>
       </form>
 
       <p className="auth-form-footer">
-        Don&apos;t have an account?{' '}
-        <Link className="auth-form-link" to="/register">
-          Create one
+        Remember your password?{' '}
+        <Link className="auth-form-link" to="/login">
+          Sign in
         </Link>
       </p>
     </AuthFormCard>

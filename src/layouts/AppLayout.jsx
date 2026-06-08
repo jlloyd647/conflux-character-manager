@@ -1,13 +1,13 @@
 import { Outlet } from 'react-router-dom'
 import Header from '../components/Header'
-
-// TODO: replace with user type from auth context
-const PLACEHOLDER_USER_TYPE = 'admin'
+import { useAuth } from '../hooks/useAuth'
 
 export default function AppLayout() {
+  const { userType } = useAuth()
+
   return (
     <div className="layout layout-app">
-      <Header userType={PLACEHOLDER_USER_TYPE} />
+      <Header userType={userType} />
       <main className="layout-main">
         <Outlet />
       </main>
