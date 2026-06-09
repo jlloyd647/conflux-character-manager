@@ -20,6 +20,10 @@ function formatDisplayValue(value, fallback) {
   return value
 }
 
+function valuesAreEqual(currentValue, nextValue) {
+  return String(currentValue ?? '') === String(nextValue ?? '')
+}
+
 export default function EditableField({
   value = '',
   onSave,
@@ -28,6 +32,9 @@ export default function EditableField({
   placeholder = '',
   disabled = false,
   inputType = 'text',
+  multiline = false,
+  editAtLabel = false,
+  fontSizePx,
   editLabel = 'Edit',
   saveLabel = 'Save',
   cancelLabel = 'Cancel',
@@ -38,12 +45,6 @@ export default function EditableField({
   const [draftValue, setDraftValue] = useState(value)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!isEditing) {
-      setDraftValue(value ?? '')
-    }
-  }, [value, isEditing])
 
   useEffect(() => {
     if (isEditing) {
@@ -69,6 +70,11 @@ export default function EditableField({
       return
     }
 
+    if (valuesAreEqual(value, draftValue)) {
+      setIsEditing(false)
+      return
+    }
+
     setSaving(true)
     setError('')
 
@@ -83,7 +89,7 @@ export default function EditableField({
   }
 
   function handleInputKeyDown(event) {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !multiline) {
       event.preventDefault()
       saveChanges()
       return
@@ -96,10 +102,44 @@ export default function EditableField({
   }
 
   const shownValue = formatDisplayValue(value, fallback)
+  const textStyle = fontSizePx ? { fontSize: `${fontSizePx}px` } : undefined
+  const fieldClassName = [
+    'editable-field',
+    multiline ? 'editable-field-multiline' : '',
+    editAtLabel ? 'editable-field-edit-at-label' : '',
+    label ? '' : 'editable-field-no-label',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  function renderEditButton() {
+    if (disabled) {
+      return null
+    }
+
+    return (
+      <button
+        type="button"
+        className="editable-field-action editable-field-action-edit"
+        aria-label={`${editLabel} ${label ?? shownValue}`}
+        title={editLabel}
+        onClick={startEditing}
+      >
+        <PencilIcon {...iconProps} />
+      </button>
+    )
+  }
 
   return (
-    <div className="editable-field">
-      {label ? (
+    <div className={fieldClassName}>
+      {editAtLabel && label && !isEditing ? (
+        <div className="editable-field-label-row">
+          <span className="editable-field-label" id={labelId}>
+            {label}
+          </span>
+          {renderEditButton()}
+        </div>
+      ) : label ? (
         <span className="editable-field-label" id={labelId}>
           {label}
         </span>
@@ -110,18 +150,38 @@ export default function EditableField({
           className="editable-field-edit"
           aria-labelledby={label ? labelId : undefined}
         >
-          <input
-            ref={inputRef}
-            className="editable-field-input"
-            type={inputType}
-            value={draftValue}
-            placeholder={placeholder}
-            disabled={saving}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? `${labelId}-error` : undefined}
-            onChange={(event) => setDraftValue(event.target.value)}
-            onKeyDown={handleInputKeyDown}
-          />
+          {multiline ? (
+            <textarea
+              ref={inputRef}
+              className="editable-field-input editable-field-textarea"
+              style={textStyle}
+              value={draftValue}
+              placeholder={placeholder}
+              aria-labelledby={label ? labelId : undefined}
+              aria-label={label ? undefined : editLabel}
+              disabled={saving}
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={error ? `${labelId}-error` : undefined}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onKeyDown={handleInputKeyDown}
+            />
+          ) : (
+            <input
+              ref={inputRef}
+              className="editable-field-input"
+              style={textStyle}
+              type={inputType}
+              value={draftValue}
+              placeholder={placeholder}
+              aria-labelledby={label ? labelId : undefined}
+              aria-label={label ? undefined : editLabel}
+              disabled={saving}
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={error ? `${labelId}-error` : undefined}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onKeyDown={handleInputKeyDown}
+            />
+          )}
           <div className="editable-field-actions">
             <button
               type="button"
@@ -164,18 +224,10 @@ export default function EditableField({
           className="editable-field-display"
           aria-labelledby={label ? labelId : undefined}
         >
-          <span className="editable-field-value">{shownValue}</span>
-          {!disabled ? (
-            <button
-              type="button"
-              className="editable-field-action editable-field-action-edit"
-              aria-label={`${editLabel} ${label ?? shownValue}`}
-              title={editLabel}
-              onClick={startEditing}
-            >
-              <PencilIcon {...iconProps} />
-            </button>
-          ) : null}
+          <span className="editable-field-value" style={textStyle}>
+            {shownValue}
+          </span>
+          {!(editAtLabel && label) ? renderEditButton() : null}
         </div>
       )}
     </div>

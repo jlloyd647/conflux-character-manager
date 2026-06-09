@@ -59,6 +59,12 @@ What does this own?
 
 ---
 
+## Feature Updates
+
+1 - [x] Add two new properties to the Table component, link and linkID. When the row is clicked, navigate to the link prop using the router passing the linkID to the new route. 
+
+---
+
 ## Future Considerations
 
 Ideas that may be explored later but are not currently approved.

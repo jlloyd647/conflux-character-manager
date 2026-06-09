@@ -4,23 +4,23 @@
 
 Provide a centralized service responsible for player-related operations throughout the application.
 
-The Player Service exists to create a single source of truth for retrieving, creating, updating, and managing player records while insulating the rest of the application from direct database implementation details.
+The Player Service exists to create a single source of truth for retrieving, creating, updating, and managing character records while insulating the rest of the application from direct database implementation details.
 
 ## Responsibilities
 
 What does this own?
 
-- Retrieving player records
-- Retrieving individual player details
-- Creating player records
-- Updating player records
-- Deactivating player records
-- Player profile management
+- Retrieving character records
+- Retrieving individual character details
+- Creating character records
+- Updating character records
+- Deactivating character records
+- Character profile management
 - Mapping database responses into application models
-- Handling player-related API interactions
-- Providing player data to pages and components
-- Managing player role assignments
-- Managing player status values
+- Handling character-related API interactions
+- Providing character data to pages and components
+- Managing character role assignments
+- Managing character status values
 
 ---
 
@@ -36,7 +36,7 @@ What is explicitly outside the scope of this document?
 - Authorization enforcement
 - UI rendering
 - Form validation
-- Character management
+- Player management
 - Event management
 - Direct component state management
 - Database schema ownership
@@ -49,10 +49,10 @@ What other specifications interact with this one?
 
 - User Service
 - Authentication Service
-- Character Service
+- Player Service
 - Event Service
 - Admin Dashboard
-- Player Management Page
+- Character Management Page
 - Supabase Integration
 
 ---
@@ -61,9 +61,9 @@ What other specifications interact with this one?
 
 Non-negotiable constraints.
 
-- All player-related data access must flow through the Player Service.
-- Components must not directly query player tables.
-- Pages must consume Player Service methods rather than database clients.
+- All character-related data access must flow through the Character Service.
+- Components must not directly query character tables.
+- Pages must consume Character Service methods rather than database clients.
 - The service must return predictable, typed responses.
 - Database implementation details must remain hidden from consumers.
 - The service must support future backend changes without requiring page-level modifications.
@@ -73,8 +73,6 @@ Non-negotiable constraints.
 ---
 
 ## Feature Updates
-
-1 - [x] Add a call to update a column by id
 
 ---
 
@@ -86,13 +84,13 @@ Non-negotiable constraints.
 
 Ideas that may be explored later but are not currently approved.
 
-- Player search functionality
-- Player filtering
-- Player audit history
-- Player notes
-- Player tags
-- Bulk player updates
-- Player import/export
+- Character search functionality
+- Character filtering
+- Character audit history
+- Character notes
+- Character tags
+- Bulk character updates
+- Character import/export
 - Caching strategies
 - Offline support
 - Analytics integrations

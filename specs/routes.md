@@ -56,6 +56,8 @@ Routes are responsible for determining which page is displayed based on the curr
 
 ## Feature Requests
 
+1 - [x] Add a route for editSkill that should only be accessible by the admin role. Route will be passed a id for use within the new page component.
+
 ## Bug Fixes
 
 ## Future Considerations

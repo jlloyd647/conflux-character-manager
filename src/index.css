@@ -497,10 +497,122 @@ code {
   filter: brightness(1.05);
 }
 
-.list-page {
+.list-page,
+.edit-page {
   max-width: 64rem;
   margin: 0 auto;
   text-align: left;
+}
+
+.edit-page-back {
+  margin: 0 0 1.5rem;
+}
+
+.edit-page-create-button {
+  margin-top: 1rem;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.edit-page-create-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.edit-skill-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: stretch;
+  min-height: 24rem;
+}
+
+.edit-skill-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 85%;
+  gap: 1.25rem;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.edit-skill-header {
+  display: flex;
+  flex: 0 0 10%;
+  gap: 1rem;
+  min-height: 3rem;
+}
+
+.edit-skill-header-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-skill-description {
+  display: flex;
+  flex: 1 1 90%;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.edit-skill-description-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.edit-skill-description-field .editable-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.edit-skill-description-field .editable-field-display,
+.edit-skill-description-field .editable-field-edit {
+  flex: 1;
+  align-items: stretch;
+}
+
+.edit-skill-description-field .editable-field-value,
+.edit-skill-description-field .editable-field-textarea {
+  flex: 1;
+  min-height: 100%;
+}
+
+.edit-skill-description-field .editable-field-value {
+  display: block;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.edit-skill-costs {
+  flex: 0 0 15%;
+  min-width: 0;
+}
+
+.edit-skill-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.editable-field-textarea {
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.list-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.list-page-header h1 {
+  margin: 0;
 }
 
 .list-page-intro {
@@ -560,6 +672,10 @@ code {
   background: var(--accent-bg);
 }
 
+.data-table-row-clickable {
+  cursor: pointer;
+}
+
 .data-table-empty-cell,
 .data-table-empty {
   padding: 2rem 1rem;
@@ -579,6 +695,19 @@ code {
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.editable-field-edit-at-label .editable-field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0 0.25rem;
+}
+
+.editable-field-edit-at-label .editable-field-label-row .editable-field-label {
+  display: inline;
+  margin: 0;
+  width: auto;
 }
 
 .editable-field-display,

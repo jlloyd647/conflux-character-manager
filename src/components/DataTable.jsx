@@ -1,4 +1,26 @@
+import { generatePath, useNavigate } from 'react-router-dom'
+
 const DEFAULT_FALLBACK = '—'
+
+function buildRowPath(link, linkId, row) {
+  if (!link || !linkId) {
+    return null
+  }
+
+  const id = row[linkId]
+
+  if (id === null || id === undefined || id === '') {
+    return null
+  }
+
+  const paramName = link.match(/:([^/]+)/)?.[1]
+
+  if (!paramName) {
+    return link
+  }
+
+  return generatePath(link, { [paramName]: String(id) })
+}
 
 function formatHeader(key) {
   return key
@@ -22,11 +44,21 @@ function resolveColumns(data, columns) {
   }))
 }
 
-function getCellValue(row, key, fallback) {
-  const value = row[key]
+function getCellValue(row, column, fallback) {
+  const value = row[column.key]
 
   if (value === null || value === undefined || value === '') {
     return fallback
+  }
+
+  if (column.format) {
+    const formatted = column.format(value)
+
+    if (formatted === null || formatted === undefined || formatted === '') {
+      return fallback
+    }
+
+    return formatted
   }
 
   return value
@@ -37,8 +69,27 @@ export default function DataTable({
   columns,
   emptyMessage = 'No data to display.',
   fallback = DEFAULT_FALLBACK,
+  link,
+  linkId,
 }) {
+  const navigate = useNavigate()
   const resolvedColumns = resolveColumns(data, columns)
+  const isRowClickable = Boolean(link && linkId)
+
+  function handleRowActivate(row) {
+    const path = buildRowPath(link, linkId, row)
+
+    if (path) {
+      navigate(path)
+    }
+  }
+
+  function handleRowKeyDown(event, row) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleRowActivate(row)
+    }
+  }
 
   if (!resolvedColumns.length) {
     return (
@@ -69,10 +120,17 @@ export default function DataTable({
             </tr>
           ) : (
             data.map((row, rowIndex) => (
-              <tr key={row.id ?? rowIndex}>
+              <tr
+                key={row.id ?? rowIndex}
+                className={isRowClickable ? 'data-table-row-clickable' : undefined}
+                onClick={isRowClickable ? () => handleRowActivate(row) : undefined}
+                onKeyDown={isRowClickable ? (event) => handleRowKeyDown(event, row) : undefined}
+                tabIndex={isRowClickable ? 0 : undefined}
+                role={isRowClickable ? 'button' : undefined}
+              >
                 {resolvedColumns.map((column) => (
                   <td key={column.key}>
-                    {getCellValue(row, column.key, column.fallback ?? fallback)}
+                    {getCellValue(row, column, column.fallback ?? fallback)}
                   </td>
                 ))}
               </tr>

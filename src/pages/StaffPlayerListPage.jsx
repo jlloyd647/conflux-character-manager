@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import { useAuth } from '../hooks/useAuth'
 import { listPlayers } from '../services/playerService'
+import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const playerColumns = [
   { key: 'first_name', header: 'First Name' },
   { key: 'last_name', header: 'Last Name' },
   { key: 'email', header: 'Email' },
-  { key: 'created_at', header: 'Created' },
+  { key: 'created_at', header: 'Created', format: formatDateToMmDdYyyy },
 ]
 
 export default function StaffPlayerListPage() {
@@ -68,7 +70,14 @@ export default function StaffPlayerListPage() {
 
   return (
     <div className="list-page">
-      <h1>Players</h1>
+      <div className="list-page-header">
+        <h1>Players</h1>
+        {userType === 'admin' ? (
+          <Link className="dashboard-action-link" to="/admin/players/new/edit">
+            Create Player
+          </Link>
+        ) : null}
+      </div>
       <p className="list-page-intro">View and manage registered players.</p>
 
       {error ? (
@@ -86,6 +95,9 @@ export default function StaffPlayerListPage() {
           data={players}
           columns={playerColumns}
           emptyMessage="No players found."
+          {...(userType === 'admin'
+            ? { link: '/admin/players/:id/edit', linkId: 'id' }
+            : {})}
         />
       )}
     </div>

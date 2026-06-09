@@ -139,6 +139,106 @@ export async function getCurrentPlayer() {
 }
 
 /**
+ * @param {string} id Player row UUID (`players.id`)
+ * @returns {Promise<Player | null>}
+ */
+export async function getPlayerByID(id) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const { data, error } = await supabase
+    .from('players')
+    .select(PLAYER_COLUMNS)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return mapPlayerRow(data)
+}
+
+/**
+ * @param {{
+ *   userId?: string,
+ *   firstName: string,
+ *   lastName?: string,
+ *   preferredName?: string,
+ *   pronouns?: string,
+ *   email: string,
+ *   discordUsername?: string,
+ *   status?: PlayerStatus,
+ * }} input
+ * @returns {Promise<Player>}
+ */
+export async function createNewPlayer({
+  userId,
+  firstName,
+  lastName = '',
+  preferredName = '',
+  pronouns = '',
+  email,
+  discordUsername = '',
+  status = 'active',
+}) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const insertPayload = {
+    first_name: firstName,
+    last_name: lastName,
+    preferred_name: preferredName,
+    pronouns,
+    email,
+    discord_username: discordUsername,
+    status,
+  }
+
+  if (userId) {
+    insertPayload.user_id = userId
+  }
+
+  const { data, error } = await supabase
+    .from('players')
+    .insert(insertPayload)
+    .select(PLAYER_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const player = mapPlayerRow(data)
+
+  if (!player) {
+    throw new Error('Player not found')
+  }
+
+  return player
+}
+
+/**
  * @param {string} playerId
  * @param {string} column App field name (e.g. firstName) or database column (e.g. first_name)
  * @param {string} value

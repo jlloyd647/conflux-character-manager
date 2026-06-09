@@ -44,6 +44,8 @@ Exists to give the user access to commonly used links and menus that are viewabl
 
 ## Bug Fixes
 
+1 - [x] When I click Players or Characters the Staff link also goes into an active state
+
 ---
 
 ## Future Considerations

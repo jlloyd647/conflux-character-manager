@@ -115,6 +115,33 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 
 ---
 
+### `/admin/players/:id/edit`
+
+**Page:** `AdminPlayerEditPage`  
+**Layout:** `AppLayout`  
+**Access:** Admin  
+**Purpose:** View, edit, or create a player
+
+---
+
+### `/admin/characters/:id/edit`
+
+**Page:** `AdminCharacterEditPage`  
+**Layout:** `AppLayout`  
+**Access:** Admin  
+**Purpose:** View, edit, or create a character
+
+---
+
+### `/admin/skills/:id/edit`
+
+**Page:** `EditSkillPage`  
+**Layout:** `AppLayout`  
+**Access:** Admin  
+**Purpose:** Edit an existing skill
+
+---
+
 ### `/admin/items`
 
 **Page:** `ItemManagementPage`  

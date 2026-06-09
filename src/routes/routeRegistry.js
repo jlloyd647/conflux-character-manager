@@ -87,6 +87,24 @@ export const routeRegistry = [
     access: 'admin',
   },
   {
+    path: '/admin/players/:id/edit',
+    page: 'AdminPlayerEditPage',
+    layout: 'app',
+    access: 'admin',
+  },
+  {
+    path: '/admin/characters/:id/edit',
+    page: 'AdminCharacterEditPage',
+    layout: 'app',
+    access: 'admin',
+  },
+  {
+    path: '/admin/skills/:id/edit',
+    page: 'EditSkillPage',
+    layout: 'app',
+    access: 'admin',
+  },
+  {
     path: '/admin/skills',
     page: 'SkillManagementPage',
     layout: 'app',
