@@ -14,6 +14,17 @@ const PLAYER_COLUMNS = [
   'updated_at',
 ].join(', ')
 
+const PLAYER_FIELD_TO_COLUMN = {
+  firstName: 'first_name',
+  lastName: 'last_name',
+  preferredName: 'preferred_name',
+  pronouns: 'pronouns',
+  email: 'email',
+  discordUsername: 'discord_username',
+}
+
+const UPDATABLE_PLAYER_COLUMNS = new Set(Object.values(PLAYER_FIELD_TO_COLUMN))
+
 /**
  * @typedef {'active' | 'inactive' | 'suspended'} PlayerStatus
  * @typedef {{
@@ -125,4 +136,50 @@ export async function getCurrentPlayer() {
   }
 
   return getPlayerByUserId(user.id)
+}
+
+/**
+ * @param {string} playerId
+ * @param {string} column App field name (e.g. firstName) or database column (e.g. first_name)
+ * @param {string} value
+ * @returns {Promise<Player>}
+ */
+export async function updatePlayerColumnById(playerId, column, value) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const dbColumn = PLAYER_FIELD_TO_COLUMN[column] ?? column
+
+  if (!UPDATABLE_PLAYER_COLUMNS.has(dbColumn)) {
+    throw new Error(`Column "${column}" is not updatable`)
+  }
+
+  const { data, error } = await supabase
+    .from('players')
+    .update({ [dbColumn]: value })
+    .eq('id', playerId)
+    .select(PLAYER_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const player = mapPlayerRow(data)
+
+  if (!player) {
+    throw new Error('Player not found')
+  }
+
+  return player
 }
