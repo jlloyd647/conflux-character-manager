@@ -65,12 +65,12 @@ export const routeRegistry = [
     access: 'logged-in',
   },
   {
-    path: '/staff',
-    page: 'StaffDashboardPage',
+    path: '/staff/players',
+    page: 'StaffPlayerListPage',
     layout: 'app',
     access: 'staff',
     showInNav: ['staff', 'admin'],
-    navLabel: 'Staff',
+    navLabel: 'Players',
   },
   {
     path: '/staff/characters',
@@ -78,21 +78,7 @@ export const routeRegistry = [
     layout: 'app',
     access: 'staff',
     showInNav: ['staff', 'admin'],
-    navLabel: 'Staff Characters',
-  },
-  {
-    path: '/staff/characters/:characterId',
-    page: 'StaffCharacterDetailPage',
-    layout: 'app',
-    access: 'staff',
-  },
-  {
-    path: '/staff/players',
-    page: 'StaffPlayerListPage',
-    layout: 'app',
-    access: 'staff',
-    showInNav: ['staff', 'admin'],
-    navLabel: 'Players',
+    navLabel: 'Characters',
   },
   {
     path: '/admin',
@@ -117,12 +103,12 @@ export const routeRegistry = [
     navLabel: 'Items',
   },
   {
-    path: '/admin/settings',
-    page: 'GameSettingsPage',
+    path: '/staff',
+    page: 'StaffDashboardPage',
     layout: 'app',
-    access: 'admin',
-    showInNav: ['admin'],
-    navLabel: 'Settings',
+    access: 'staff',
+    showInNav: ['staff', 'admin'],
+    navLabel: 'Staff',
   },
 ]
 

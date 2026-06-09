@@ -68,12 +68,12 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 
 ## Staff Routes
 
-### `/staff`
+### `/staff/players`
 
-**Page:** `StaffDashboardPage`  
+**Page:** `StaffPlayerListPage`  
 **Layout:** `AppLayout`  
 **Access:** Staff or admin  
-**Purpose:** Staff dashboard
+**Purpose:** View and manage players
 
 ---
 
@@ -82,25 +82,16 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 **Page:** `StaffCharacterListPage`  
 **Layout:** `AppLayout`  
 **Access:** Staff or admin  
-**Purpose:** Manage characters across the game
+**Purpose:** View and manage characters
 
 ---
 
-### `/staff/characters/:characterId`
+### `/staff`
 
-**Page:** `StaffCharacterDetailPage`  
+**Page:** `StaffDashboardPage`  
 **Layout:** `AppLayout`  
 **Access:** Staff or admin  
-**Purpose:** View staff-level character details
-
----
-
-### `/staff/players`
-
-**Page:** `StaffPlayerListPage`  
-**Layout:** `AppLayout`  
-**Access:** Staff or admin  
-**Purpose:** View and manage players
+**Purpose:** Staff dashboard
 
 ---
 
@@ -130,12 +121,3 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 **Layout:** `AppLayout`  
 **Access:** Admin  
 **Purpose:** Manage item templates
-
----
-
-### `/admin/settings`
-
-**Page:** `GameSettingsPage`  
-**Layout:** `AppLayout`  
-**Access:** Admin  
-**Purpose:** Manage game configuration
