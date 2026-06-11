@@ -65,7 +65,7 @@ export async function getAllSkills() {
     throw new Error(error.message)
   }
 
-  return data ?? []
+  return (data ?? []).map(mapSkillRow).filter(Boolean)
 }
 
 /**

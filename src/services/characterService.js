@@ -24,6 +24,13 @@ const UPDATABLE_CHARACTER_COLUMNS = new Set(
   ),
 )
 
+const CHARACTER_SKILL_COLUMNS = [
+  'character_id',
+  'skill_id',
+  'approved',
+  'created_at',
+].join(', ')
+
 /**
  * @typedef {{
  *   id: string,
@@ -34,6 +41,15 @@ const UPDATABLE_CHARACTER_COLUMNS = new Set(
  *   bloodlineId: number,
  *   createdAt: string,
  * }} Character
+ */
+
+/**
+ * @typedef {{
+ *   characterId: number,
+ *   skillId: number,
+ *   approved: boolean,
+ *   createdAt: string,
+ * }} CharacterSkill
  */
 
 /** @param {Record<string, unknown> | null} row */
@@ -49,6 +65,20 @@ function mapCharacterRow(row) {
     xp: row.xp ?? 0,
     playerId: row.player_id,
     bloodlineId: row.bloodline_id ?? 0,
+    createdAt: row.created_at,
+  }
+}
+
+/** @param {Record<string, unknown> | null} row */
+function mapCharacterSkillRow(row) {
+  if (!row) {
+    return null
+  }
+
+  return {
+    characterId: row.character_id ?? 0,
+    skillId: row.skill_id ?? 0,
+    approved: row.approved ?? false,
     createdAt: row.created_at,
   }
 }
@@ -232,4 +262,93 @@ export async function updateCharacterColumnById(characterId, column, value) {
   }
 
   return character
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @returns {Promise<CharacterSkill[]>}
+ */
+export async function getCharacterSkills(characterId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  const { data, error } = await supabase
+    .from('character-skill')
+    .select(CHARACTER_SKILL_COLUMNS)
+    .eq('character_id', numericCharacterId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map(mapCharacterSkillRow).filter(Boolean)
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {string | number} skillId Numeric skill business id (`skills.skill_id`)
+ * @returns {Promise<CharacterSkill>}
+ */
+export async function addCharacterSkills(characterId, skillId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+  const numericSkillId = Number(skillId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  if (Number.isNaN(numericSkillId)) {
+    throw new Error('Invalid skill id')
+  }
+
+  const { data, error } = await supabase
+    .from('character-skill')
+    .insert({
+      character_id: numericCharacterId,
+      skill_id: numericSkillId,
+    })
+    .select(CHARACTER_SKILL_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const characterSkill = mapCharacterSkillRow(data)
+
+  if (!characterSkill) {
+    throw new Error('Character skill not found')
+  }
+
+  return characterSkill
 }

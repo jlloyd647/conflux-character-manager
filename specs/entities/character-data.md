@@ -57,6 +57,19 @@ type Player = {
 
 ---
 
+## Bridge Tables
+
+Bridge tables exist to show the relationship between two seperate tables when there is a many to many relationship.
+
+character-skill:
+
+character_id: int8
+skill_id: int4
+approved: boolean
+created_at: datetime
+
+---
+
 ## Rules
 
 - Every Character must have a unique id.

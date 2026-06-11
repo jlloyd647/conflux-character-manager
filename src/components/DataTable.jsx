@@ -71,12 +71,18 @@ export default function DataTable({
   fallback = DEFAULT_FALLBACK,
   link,
   linkId,
+  onRowClick,
 }) {
   const navigate = useNavigate()
   const resolvedColumns = resolveColumns(data, columns)
-  const isRowClickable = Boolean(link && linkId)
+  const isRowClickable = Boolean(onRowClick || (link && linkId))
 
   function handleRowActivate(row) {
+    if (onRowClick) {
+      onRowClick(row)
+      return
+    }
+
     const path = buildRowPath(link, linkId, row)
 
     if (path) {

@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import DataTable from '../components/DataTable'
+import DropdownField from '../components/DropdownField'
 import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
 import {
+  addCharacterSkills,
   createCharacter,
   getCharacterById,
+  getCharacterSkills,
   updateCharacterColumnById,
 } from '../services/characterService'
+import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const EMPTY_CHARACTER = {
@@ -15,6 +20,15 @@ const EMPTY_CHARACTER = {
   bloodlineId: '',
   xp: '0',
 }
+
+const skillPickerColumns = [
+  { key: 'skillID', header: 'Skill ID' },
+  { key: 'skillName', header: 'Name' },
+  { key: 'skillDescription', header: 'Description' },
+  { key: 'costXP', header: 'XP Cost' },
+  { key: 'costWill', header: 'Will Cost' },
+  { key: 'costMind', header: 'Mind Cost' },
+]
 
 function parseIntegerField(value, label) {
   const parsed = Number.parseInt(String(value).trim(), 10)
@@ -53,6 +67,19 @@ export default function AdminCharacterEditPage() {
   const [loading, setLoading] = useState(!isCreateMode)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const [characterSkillsState, setCharacterSkillsState] = useState({
+    characterId: null,
+    skills: [],
+    error: '',
+  })
+  const [showSkillPicker, setShowSkillPicker] = useState(false)
+  const allSkills = useReferenceDataStore((state) => state.skills)
+  const allSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
+  const loadSkills = useReferenceDataStore((state) => state.loadSkills)
+  const getSkillBySkillID = useReferenceDataStore((state) => state.getSkillBySkillID)
+  const bloodlines = useReferenceDataStore((state) => state.bloodlines)
+  const loadBloodlines = useReferenceDataStore((state) => state.loadBloodlines)
+  const [addingSkill, setAddingSkill] = useState(false)
 
   useEffect(() => {
     if (authLoading || isCreateMode) {
@@ -89,6 +116,132 @@ export default function AdminCharacterEditPage() {
       active = false
     }
   }, [authLoading, id, isCreateMode])
+
+  useEffect(() => {
+    if (authLoading || isCreateMode || !character?.characterId) {
+      return undefined
+    }
+
+    const characterId = character.characterId
+    let active = true
+
+    getCharacterSkills(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterSkillsState({
+            characterId,
+            skills: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterSkillsState({
+            characterId,
+            skills: [],
+            error: loadError.message,
+          })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [authLoading, isCreateMode, character?.characterId])
+
+  const characterSkills =
+    characterSkillsState.characterId === character?.characterId
+      ? characterSkillsState.skills
+      : []
+  const skillsLoading =
+    Boolean(character?.characterId) &&
+    !isCreateMode &&
+    characterSkillsState.characterId !== character?.characterId
+  const skillsError = characterSkillsState.error
+
+  function setSkillsError(message) {
+    setCharacterSkillsState((previous) => ({
+      ...previous,
+      error: message,
+    }))
+  }
+
+  useEffect(() => {
+    if (authLoading || isCreateMode || !character?.characterId) {
+      return undefined
+    }
+
+    if (!allSkills.length && !allSkillsLoading) {
+      loadSkills().catch((loadError) => {
+        setSkillsError(loadError.message)
+      })
+    }
+  }, [
+    authLoading,
+    isCreateMode,
+    character?.characterId,
+    allSkills.length,
+    allSkillsLoading,
+    loadSkills,
+  ])
+
+  useEffect(() => {
+    if (authLoading) {
+      return undefined
+    }
+
+    const { bloodlines, bloodlinesLoading } = useReferenceDataStore.getState()
+
+    if (!bloodlines.length && !bloodlinesLoading) {
+      loadBloodlines().catch(() => {})
+    }
+  }, [authLoading, loadBloodlines])
+
+  useEffect(() => {
+    if (authLoading || !showSkillPicker || allSkills.length || allSkillsLoading) {
+      return undefined
+    }
+
+    loadSkills().catch((loadError) => {
+      setSkillsError(loadError.message)
+    })
+  }, [authLoading, showSkillPicker, allSkills.length, allSkillsLoading, loadSkills])
+
+  async function handleAddSkill(row) {
+    if (!character?.characterId || addingSkill) {
+      return
+    }
+
+    const skillId = Number(row.skillID)
+
+    if (Number.isNaN(skillId)) {
+      setSkillsError('Invalid skill id')
+      return
+    }
+
+    if (characterSkills.some((skill) => skill.skillId === skillId)) {
+      setSkillsError('Skill is already assigned to this character.')
+      return
+    }
+
+    setAddingSkill(true)
+    setSkillsError('')
+
+    try {
+      const addedSkill = await addCharacterSkills(character.characterId, skillId)
+      setCharacterSkillsState((previous) => ({
+        ...previous,
+        skills: [...previous.skills, addedSkill],
+        error: '',
+      }))
+      setShowSkillPicker(false)
+    } catch (addError) {
+      setSkillsError(addError.message)
+    } finally {
+      setAddingSkill(false)
+    }
+  }
 
   function updateCharacterField(field, parser = (value) => value) {
     return async (nextValue) => {
@@ -151,6 +304,19 @@ export default function AdminCharacterEditPage() {
   const showForm = isCreateMode || Boolean(character)
   const headerName = activeCharacter?.characterName || (isCreateMode ? '' : 'Character')
 
+  function getSkillDisplayName(skillId) {
+    return getSkillBySkillID(skillId)?.skillName ?? String(skillId)
+  }
+
+  const bloodlineOptions = useMemo(
+    () =>
+      bloodlines.map((bloodline) => ({
+        value: bloodline.bloodlineID,
+        label: bloodline.bloodlineName,
+      })),
+    [bloodlines],
+  )
+
   return (
     <div className="edit-page">
       <h1>{isCreateMode ? 'Create Character' : 'Edit Character'}</h1>
@@ -194,12 +360,14 @@ export default function AdminCharacterEditPage() {
                 />
               </div>
               <div className="dashboard-profile-field">
-                <EditableField
-                  label="Bloodline ID"
+                <DropdownField
+                  label="Bloodline"
                   value={formatFieldValue(activeCharacter?.bloodlineId)}
-                  inputType="number"
+                  options={bloodlineOptions}
+                  placeholder="Select bloodline"
+                  editLabel="Edit bloodline"
                   onSave={updateCharacterField('bloodlineId', (value) =>
-                    parseIntegerField(value, 'Bloodline ID'),
+                    parseIntegerField(value, 'Bloodline'),
                   )}
                 />
               </div>
@@ -231,6 +399,75 @@ export default function AdminCharacterEditPage() {
                 />
               ) : null}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && !isCreateMode && character ? (
+        <section className="dashboard-section">
+          <div className="character-skills-header">
+            <h2 className="dashboard-section-title">Skills</h2>
+            {showSkillPicker ? (
+              <button
+                type="button"
+                className="dashboard-action-link character-skills-action"
+                disabled={addingSkill}
+                onClick={() => setShowSkillPicker(false)}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="dashboard-action-link character-skills-action"
+                onClick={() => setShowSkillPicker(true)}
+              >
+                Add Skill
+              </button>
+            )}
+          </div>
+          <div className="dashboard-card character-skills-card">
+            {skillsError ? (
+              <p className="list-page-error" role="alert">
+                {skillsError}
+              </p>
+            ) : null}
+
+            {showSkillPicker ? (
+              allSkillsLoading || addingSkill ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  {addingSkill ? 'Adding skill…' : 'Loading skills…'}
+                </p>
+              ) : (
+                <DataTable
+                  data={allSkills}
+                  columns={skillPickerColumns}
+                  emptyMessage="No skills found."
+                  onRowClick={handleAddSkill}
+                />
+              )
+            ) : skillsLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading skills…
+              </p>
+            ) : (
+              <div className="character-skills-list">
+                {characterSkills.length ? (
+                  <ul className="character-skills-items">
+                    {characterSkills.map((skill) => (
+                      <li
+                        key={`${skill.characterId}-${skill.skillId}`}
+                        className="character-skills-item"
+                      >
+                        {getSkillDisplayName(skill.skillId)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="character-skills-empty">No skills found.</p>
+                )}
+              </div>
+            )}
           </div>
         </section>
       ) : null}

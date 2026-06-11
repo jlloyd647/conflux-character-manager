@@ -24,16 +24,31 @@ function valuesAreEqual(currentValue, nextValue) {
   return String(currentValue ?? '') === String(nextValue ?? '')
 }
 
-export default function EditableField({
+function resolveDisplayValue(value, displayValue, options, fallback) {
+  if (displayValue !== undefined && displayValue !== null && displayValue !== '') {
+    return formatDisplayValue(displayValue, fallback)
+  }
+
+  const matchedOption = options.find((option) =>
+    valuesAreEqual(option.value, value),
+  )
+
+  if (matchedOption) {
+    return formatDisplayValue(matchedOption.label, fallback)
+  }
+
+  return formatDisplayValue(value, fallback)
+}
+
+export default function DropdownField({
   value = '',
   displayValue,
+  options = [],
   onSave,
   label,
   fallback = '—',
   placeholder = '',
   disabled = false,
-  inputType = 'text',
-  multiline = false,
   editAtLabel = false,
   fontSizePx,
   editLabel = 'Edit',
@@ -41,7 +56,7 @@ export default function EditableField({
   cancelLabel = 'Cancel',
 }) {
   const labelId = useId()
-  const inputRef = useRef(null)
+  const selectRef = useRef(null)
   const [isEditing, setIsEditing] = useState(false)
   const [draftValue, setDraftValue] = useState(value)
   const [saving, setSaving] = useState(false)
@@ -49,8 +64,7 @@ export default function EditableField({
 
   useEffect(() => {
     if (isEditing) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
+      selectRef.current?.focus()
     }
   }, [isEditing])
 
@@ -89,8 +103,8 @@ export default function EditableField({
     }
   }
 
-  function handleInputKeyDown(event) {
-    if (event.key === 'Enter' && !multiline) {
+  function handleSelectKeyDown(event) {
+    if (event.key === 'Enter') {
       event.preventDefault()
       saveChanges()
       return
@@ -102,14 +116,11 @@ export default function EditableField({
     }
   }
 
-  const shownValue = formatDisplayValue(
-    isEditing ? value : (displayValue ?? value),
-    fallback,
-  )
+  const shownValue = resolveDisplayValue(value, displayValue, options, fallback)
   const textStyle = fontSizePx ? { fontSize: `${fontSizePx}px` } : undefined
   const fieldClassName = [
     'editable-field',
-    multiline ? 'editable-field-multiline' : '',
+    'dropdown-field',
     editAtLabel ? 'editable-field-edit-at-label' : '',
     label ? '' : 'editable-field-no-label',
   ]
@@ -154,38 +165,28 @@ export default function EditableField({
           className="editable-field-edit"
           aria-labelledby={label ? labelId : undefined}
         >
-          {multiline ? (
-            <textarea
-              ref={inputRef}
-              className="editable-field-input editable-field-textarea"
-              style={textStyle}
-              value={draftValue}
-              placeholder={placeholder}
-              aria-labelledby={label ? labelId : undefined}
-              aria-label={label ? undefined : editLabel}
-              disabled={saving}
-              aria-invalid={error ? 'true' : undefined}
-              aria-describedby={error ? `${labelId}-error` : undefined}
-              onChange={(event) => setDraftValue(event.target.value)}
-              onKeyDown={handleInputKeyDown}
-            />
-          ) : (
-            <input
-              ref={inputRef}
-              className="editable-field-input"
-              style={textStyle}
-              type={inputType}
-              value={draftValue}
-              placeholder={placeholder}
-              aria-labelledby={label ? labelId : undefined}
-              aria-label={label ? undefined : editLabel}
-              disabled={saving}
-              aria-invalid={error ? 'true' : undefined}
-              aria-describedby={error ? `${labelId}-error` : undefined}
-              onChange={(event) => setDraftValue(event.target.value)}
-              onKeyDown={handleInputKeyDown}
-            />
-          )}
+          <select
+            ref={selectRef}
+            className="editable-field-input dropdown-field-select"
+            style={textStyle}
+            value={String(draftValue ?? '')}
+            aria-labelledby={label ? labelId : undefined}
+            aria-label={label ? undefined : editLabel}
+            disabled={saving}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? `${labelId}-error` : undefined}
+            onChange={(event) => setDraftValue(event.target.value)}
+            onKeyDown={handleSelectKeyDown}
+          >
+            {placeholder ? (
+              <option value="">{placeholder}</option>
+            ) : null}
+            {options.map((option) => (
+              <option key={String(option.value)} value={String(option.value)}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <div className="editable-field-actions">
             <button
               type="button"

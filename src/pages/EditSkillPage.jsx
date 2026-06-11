@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
 import {
   createNewSkill,
-  getSkillByID,
   updateSkillByID,
 } from '../services/skillService'
+import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const EMPTY_SKILL = {
@@ -68,47 +68,18 @@ export default function EditSkillPage() {
   const navigate = useNavigate()
   const { loading: authLoading } = useAuth()
   const isCreateMode = id === 'new'
-  const [skill, setSkill] = useState(null)
+  const upsertSkill = useReferenceDataStore((state) => state.upsertSkill)
+  const skill = useReferenceDataStore((state) =>
+    isCreateMode || !id ? null : state.getSkillById(id),
+  )
+  const storeSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
+  const storeSkillsError = useReferenceDataStore((state) => state.skillsError)
   const [draftSkill, setDraftSkill] = useState(EMPTY_SKILL)
-  const [loading, setLoading] = useState(!isCreateMode)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    if (authLoading || isCreateMode) {
-      return undefined
-    }
-
-    let active = true
-
-    getSkillByID(id)
-      .then((data) => {
-        if (!active) {
-          return
-        }
-
-        if (!data) {
-          setError('Skill not found.')
-          return
-        }
-
-        setSkill(data)
-      })
-      .catch((loadError) => {
-        if (active) {
-          setError(loadError.message)
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [authLoading, id, isCreateMode])
+  const loading = !isCreateMode && storeSkillsLoading
+  const skillNotFound = !isCreateMode && !storeSkillsLoading && !skill
 
   function updateSkillField(field, parser = (value) => value) {
     return async (nextValue) => {
@@ -141,7 +112,7 @@ export default function EditSkillPage() {
       })
 
       const updatedSkill = await updateSkillByID(id, updates)
-      setSkill(updatedSkill)
+      upsertSkill(updatedSkill)
     }
   }
 
@@ -176,6 +147,7 @@ export default function EditSkillPage() {
       })
 
       const createdSkill = await createNewSkill(createInput)
+      upsertSkill(createdSkill)
 
       navigate(`/admin/skills/${createdSkill.id}/edit`, { replace: true })
     } catch (createError) {
@@ -195,9 +167,15 @@ export default function EditSkillPage() {
         <Link to="/admin/skills">Back to Skills</Link>
       </p>
 
-      {error ? (
+      {error || storeSkillsError ? (
         <p className="list-page-error" role="alert">
-          {error}
+          {error || storeSkillsError}
+        </p>
+      ) : null}
+
+      {skillNotFound ? (
+        <p className="list-page-error" role="alert">
+          Skill not found.
         </p>
       ) : null}
 

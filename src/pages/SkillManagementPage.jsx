@@ -1,54 +1,24 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import { useAuth } from '../hooks/useAuth'
-import { getAllSkills } from '../services/skillService'
+import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const skillColumns = [
-  { key: 'skill_id', header: 'Skill ID' },
-  { key: 'name', header: 'Name' },
-  { key: 'description', header: 'Description' },
-  { key: 'cost_xp', header: 'XP Cost' },
-  { key: 'cost_will', header: 'Will Cost' },
-  { key: 'cost_mind', header: 'Mind Cost' },
-  { key: 'created_at', header: 'Created', format: formatDateToMmDdYyyy },
+  { key: 'skillID', header: 'Skill ID' },
+  { key: 'skillName', header: 'Name' },
+  { key: 'skillDescription', header: 'Description' },
+  { key: 'costXP', header: 'XP Cost' },
+  { key: 'costWill', header: 'Will Cost' },
+  { key: 'costMind', header: 'Mind Cost' },
+  { key: 'createdAt', header: 'Created', format: formatDateToMmDdYyyy },
 ]
 
 export default function SkillManagementPage() {
   const { loading: authLoading } = useAuth()
-  const [skills, setSkills] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (authLoading) {
-      return undefined
-    }
-
-    let active = true
-
-    getAllSkills()
-      .then((data) => {
-        if (active) {
-          setSkills(data)
-        }
-      })
-      .catch((loadError) => {
-        if (active) {
-          setError(loadError.message)
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [authLoading])
+  const skills = useReferenceDataStore((state) => state.skills)
+  const loading = useReferenceDataStore((state) => state.skillsLoading)
+  const error = useReferenceDataStore((state) => state.skillsError)
 
   return (
     <div className="list-page">

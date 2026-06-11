@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getSession, onAuthStateChange } from '../services/authService'
 import { getProfileById } from '../services/profileService'
+import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { AuthContext } from './authContext'
 
 async function loadProfileForSession(session) {
@@ -32,6 +33,16 @@ export function AuthProvider({ children }) {
 
       setSession(nextSession)
       setProfile(nextProfile)
+
+      if (nextSession?.user?.id) {
+        const referenceStore = useReferenceDataStore.getState()
+        referenceStore.loadSkills().catch(() => {})
+        referenceStore.loadBloodlines().catch(() => {})
+      } else {
+        const referenceStore = useReferenceDataStore.getState()
+        referenceStore.clearSkills()
+        referenceStore.clearBloodlines()
+      }
     }
 
     getSession()

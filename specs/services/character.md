@@ -74,6 +74,9 @@ Non-negotiable constraints.
 
 ## Feature Updates
 
+1 - [x] add a function getCharacterSkills to the service that calls to the character-skill table where using the character id as the identifier. Be sure to use the character_id not the id.
+2 - [x] add a function to addCharacterSkills to the service that calls to the character-skill table wending over both the characterID and the skillID
+
 ---
 
 ## Bug Fixes
