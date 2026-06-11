@@ -1,5 +1,8 @@
 import { create } from 'zustand'
+import { getAllBanes } from '../services/baneService'
 import { getAllBloodlines } from '../services/bloodlineService'
+import { getAllCurses } from '../services/curseService'
+import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
 import { getAllSkills } from '../services/skillService'
 
@@ -7,6 +10,9 @@ import { getAllSkills } from '../services/skillService'
  * @typedef {import('../services/skillService').Skill} Skill
  * @typedef {import('../services/bloodlineService').Bloodline} Bloodline
  * @typedef {import('../services/kingroupService').Kingroup} Kingroup
+ * @typedef {import('../services/baneService').Bane} Bane
+ * @typedef {import('../services/giftService').Gift} Gift
+ * @typedef {import('../services/curseService').Curse} Curse
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -19,6 +25,15 @@ export const useReferenceDataStore = create((set, get) => ({
   kingroups: [],
   kingroupsLoading: false,
   kingroupsError: null,
+  banes: [],
+  banesLoading: false,
+  banesError: null,
+  gifts: [],
+  giftsLoading: false,
+  giftsError: null,
+  curses: [],
+  cursesLoading: false,
+  cursesError: null,
 
   loadSkills: async () => {
     set({ skillsLoading: true, skillsError: null })
@@ -148,4 +163,123 @@ export const useReferenceDataStore = create((set, get) => ({
 
   clearKingroups: () =>
     set({ kingroups: [], kingroupsLoading: false, kingroupsError: null }),
+
+  loadBanes: async () => {
+    set({ banesLoading: true, banesError: null })
+
+    try {
+      const banes = await getAllBanes()
+      set({ banes, banesLoading: false })
+      return banes
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load banes'
+      set({ banesError: message, banesLoading: false })
+      throw error
+    }
+  },
+
+  setBanes: (banes) => set({ banes }),
+
+  upsertBane: (bane) =>
+    set((state) => {
+      const index = state.banes.findIndex((entry) => entry.baneID === bane.baneID)
+
+      if (index >= 0) {
+        const banes = [...state.banes]
+        banes[index] = bane
+        return { banes }
+      }
+
+      return {
+        banes: [...state.banes, bane].sort((left, right) => left.baneID - right.baneID),
+      }
+    }),
+
+  getBaneByBaneID: (baneID) =>
+    get().banes.find((bane) => bane.baneID === Number(baneID)) ?? null,
+
+  getBanesByBloodlineID: (bloodlineID) =>
+    get().banes.filter((bane) => bane.bloodlineID === Number(bloodlineID)),
+
+  clearBanes: () => set({ banes: [], banesLoading: false, banesError: null }),
+
+  loadGifts: async () => {
+    set({ giftsLoading: true, giftsError: null })
+
+    try {
+      const gifts = await getAllGifts()
+      set({ gifts, giftsLoading: false })
+      return gifts
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load gifts'
+      set({ giftsError: message, giftsLoading: false })
+      throw error
+    }
+  },
+
+  setGifts: (gifts) => set({ gifts }),
+
+  upsertGift: (gift) =>
+    set((state) => {
+      const index = state.gifts.findIndex((entry) => entry.giftID === gift.giftID)
+
+      if (index >= 0) {
+        const gifts = [...state.gifts]
+        gifts[index] = gift
+        return { gifts }
+      }
+
+      return {
+        gifts: [...state.gifts, gift].sort((left, right) => left.giftID - right.giftID),
+      }
+    }),
+
+  getGiftByGiftID: (giftID) =>
+    get().gifts.find((gift) => gift.giftID === Number(giftID)) ?? null,
+
+  getGiftsByBloodlineID: (bloodlineID) =>
+    get().gifts.filter((gift) => gift.bloodlineID === Number(bloodlineID)),
+
+  clearGifts: () => set({ gifts: [], giftsLoading: false, giftsError: null }),
+
+  loadCurses: async () => {
+    set({ cursesLoading: true, cursesError: null })
+
+    try {
+      const curses = await getAllCurses()
+      set({ curses, cursesLoading: false })
+      return curses
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load curses'
+      set({ cursesError: message, cursesLoading: false })
+      throw error
+    }
+  },
+
+  setCurses: (curses) => set({ curses }),
+
+  upsertCurse: (curse) =>
+    set((state) => {
+      const index = state.curses.findIndex((entry) => entry.curseID === curse.curseID)
+
+      if (index >= 0) {
+        const curses = [...state.curses]
+        curses[index] = curse
+        return { curses }
+      }
+
+      return {
+        curses: [...state.curses, curse].sort(
+          (left, right) => left.curseID - right.curseID,
+        ),
+      }
+    }),
+
+  getCurseByCurseID: (curseID) =>
+    get().curses.find((curse) => curse.curseID === Number(curseID)) ?? null,
+
+  getCursesByBloodlineID: (bloodlineID) =>
+    get().curses.filter((curse) => curse.bloodlineID === Number(bloodlineID)),
+
+  clearCurses: () => set({ curses: [], cursesLoading: false, cursesError: null }),
 }))

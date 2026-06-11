@@ -15,6 +15,9 @@ Store will use the Zustand library. Stores should be saved within the stores fol
 - Store will include a list of skills
 - Store will include a list of bloodlines
 - Store will include a list of kingroups
+- Store will include a list of banes
+- Store will include a list of gifts
+- Store will include a list of curses
 
 ## Feature Updates
 

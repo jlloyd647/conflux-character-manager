@@ -16,5 +16,8 @@ This will be displayed in a form view and use the editableField component to dis
 4 - [x] Using the bloodlines from the referenceDataStore, change hte bloodline ID to display the bloodline name instead.
 5 - [x] Using the kingroups from the referenceDataStore, add a new DropdownField component labeled "Kin Group" that uses the character kingroup_id to display their kingroup name. If a user does not have a kingroup, display select kingroup.
 6 - [x] Only display kingroups in the kingroup dropdown that have the same bloodline_id as the character.
+7 - [x] Add an area to display a list of blood line banes. The banes should come from the banes in ReferenceDataStore and should only display banes that match the characters bloodline_id.
+8 - [x] Add an area to display a list of blood line gifts. The gifts should come from the gifts in ReferenceDataStore and should only display gifts that match the characters bloodline_id.
+9 - [x] Add an area to display a list of blood line curses. The curses should come from the curses in ReferenceDataStore and should only display curses that match the characters bloodline_id.
 
 ## Bug Fixes

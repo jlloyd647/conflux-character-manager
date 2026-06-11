@@ -39,11 +39,17 @@ export function AuthProvider({ children }) {
         referenceStore.loadSkills().catch(() => {})
         referenceStore.loadBloodlines().catch(() => {})
         referenceStore.loadKingroups().catch(() => {})
+        referenceStore.loadBanes().catch(() => {})
+        referenceStore.loadGifts().catch(() => {})
+        referenceStore.loadCurses().catch(() => {})
       } else {
         const referenceStore = useReferenceDataStore.getState()
         referenceStore.clearSkills()
         referenceStore.clearBloodlines()
         referenceStore.clearKingroups()
+        referenceStore.clearBanes()
+        referenceStore.clearGifts()
+        referenceStore.clearCurses()
       }
     }
 

@@ -100,6 +100,15 @@ export default function AdminCharacterEditPage() {
   const loadBloodlines = useReferenceDataStore((state) => state.loadBloodlines)
   const kingroups = useReferenceDataStore((state) => state.kingroups)
   const loadKingroups = useReferenceDataStore((state) => state.loadKingroups)
+  const banes = useReferenceDataStore((state) => state.banes)
+  const banesLoading = useReferenceDataStore((state) => state.banesLoading)
+  const loadBanes = useReferenceDataStore((state) => state.loadBanes)
+  const gifts = useReferenceDataStore((state) => state.gifts)
+  const giftsLoading = useReferenceDataStore((state) => state.giftsLoading)
+  const loadGifts = useReferenceDataStore((state) => state.loadGifts)
+  const curses = useReferenceDataStore((state) => state.curses)
+  const cursesLoading = useReferenceDataStore((state) => state.cursesLoading)
+  const loadCurses = useReferenceDataStore((state) => state.loadCurses)
   const [addingSkill, setAddingSkill] = useState(false)
 
   useEffect(() => {
@@ -212,8 +221,18 @@ export default function AdminCharacterEditPage() {
       return undefined
     }
 
-    const { bloodlines, bloodlinesLoading, kingroups, kingroupsLoading } =
-      useReferenceDataStore.getState()
+    const {
+      bloodlines,
+      bloodlinesLoading,
+      kingroups,
+      kingroupsLoading,
+      banes,
+      banesLoading,
+      gifts,
+      giftsLoading,
+      curses,
+      cursesLoading,
+    } = useReferenceDataStore.getState()
 
     if (!bloodlines.length && !bloodlinesLoading) {
       loadBloodlines().catch(() => {})
@@ -222,7 +241,19 @@ export default function AdminCharacterEditPage() {
     if (!kingroups.length && !kingroupsLoading) {
       loadKingroups().catch(() => {})
     }
-  }, [authLoading, loadBloodlines, loadKingroups])
+
+    if (!banes.length && !banesLoading) {
+      loadBanes().catch(() => {})
+    }
+
+    if (!gifts.length && !giftsLoading) {
+      loadGifts().catch(() => {})
+    }
+
+    if (!curses.length && !cursesLoading) {
+      loadCurses().catch(() => {})
+    }
+  }, [authLoading, loadBloodlines, loadKingroups, loadBanes, loadGifts, loadCurses])
 
   useEffect(() => {
     if (authLoading || !showSkillPicker || allSkills.length || allSkillsLoading) {
@@ -358,6 +389,36 @@ export default function AdminCharacterEditPage() {
         label: kingroup.kingroupName,
       }))
   }, [kingroups, activeCharacter?.bloodlineId])
+
+  const bloodlineBanes = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return []
+    }
+
+    return banes.filter((bane) => bane.bloodlineID === bloodlineId)
+  }, [banes, activeCharacter?.bloodlineId])
+
+  const bloodlineGifts = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return []
+    }
+
+    return gifts.filter((gift) => gift.bloodlineID === bloodlineId)
+  }, [gifts, activeCharacter?.bloodlineId])
+
+  const bloodlineCurses = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return []
+    }
+
+    return curses.filter((curse) => curse.bloodlineID === bloodlineId)
+  }, [curses, activeCharacter?.bloodlineId])
 
   return (
     <div className="edit-page">
@@ -522,6 +583,99 @@ export default function AdminCharacterEditPage() {
                   <p className="character-skills-empty">No skills found.</p>
                 )}
               </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && showForm ? (
+        <section className="dashboard-section">
+          <h2 className="dashboard-section-title">Bloodline Banes</h2>
+          <div className="dashboard-card character-skills-card">
+            {!activeCharacter?.bloodlineId ? (
+              <p className="character-skills-empty character-skills-status">
+                Select a bloodline to view banes.
+              </p>
+            ) : banesLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading banes…
+              </p>
+            ) : bloodlineBanes.length ? (
+              <div className="character-skills-list">
+                <ul className="character-skills-items">
+                  {bloodlineBanes.map((bane) => (
+                    <li key={bane.baneID} className="character-skills-item">
+                      {bane.baneName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="character-skills-empty character-skills-status">
+                No banes found for this bloodline.
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && showForm ? (
+        <section className="dashboard-section">
+          <h2 className="dashboard-section-title">Bloodline Gifts</h2>
+          <div className="dashboard-card character-skills-card">
+            {!activeCharacter?.bloodlineId ? (
+              <p className="character-skills-empty character-skills-status">
+                Select a bloodline to view gifts.
+              </p>
+            ) : giftsLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading gifts…
+              </p>
+            ) : bloodlineGifts.length ? (
+              <div className="character-skills-list">
+                <ul className="character-skills-items">
+                  {bloodlineGifts.map((gift) => (
+                    <li key={gift.giftID} className="character-skills-item">
+                      {gift.giftName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="character-skills-empty character-skills-status">
+                No gifts found for this bloodline.
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && showForm ? (
+        <section className="dashboard-section">
+          <h2 className="dashboard-section-title">Bloodline Curses</h2>
+          <div className="dashboard-card character-skills-card">
+            {!activeCharacter?.bloodlineId ? (
+              <p className="character-skills-empty character-skills-status">
+                Select a bloodline to view curses.
+              </p>
+            ) : cursesLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading curses…
+              </p>
+            ) : bloodlineCurses.length ? (
+              <div className="character-skills-list">
+                <ul className="character-skills-items">
+                  {bloodlineCurses.map((curse) => (
+                    <li key={curse.curseID} className="character-skills-item">
+                      {curse.curseName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="character-skills-empty character-skills-status">
+                No curses found for this bloodline.
+              </p>
             )}
           </div>
         </section>
