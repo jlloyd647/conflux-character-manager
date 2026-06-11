@@ -30,7 +30,7 @@ Character Stats are the numeric value of stats that each character pocesses
 ### Banes will map to a more javascript friendly form when in the application
 
 - characterID: | characterID
-- xp_spent | statXpSpent
+- xp_spent | statXPSpent
 - vitality_1 | characterVitality
 - vitality_2 | characterVitality
 - vitality_3 | characterVitality
@@ -55,7 +55,7 @@ vitality 1 - 5: Amount of damage a character can take
 mind 1 - 5: Amount of abilities a character can use
 strength 1 - 3: Amount of power a character pocesses
 willpower 1 - 3: Amount of mental fortitude a character pocesses
-xp_spent: Running total of XP spent on stats and skills
+xp_spent: Running total of XP spent on stats, skills, and talents
 
 ## Data Location
 

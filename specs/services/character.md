@@ -76,6 +76,7 @@ Non-negotiable constraints.
 
 1 - [x] add a function getCharacterSkills to the service that calls to the character-skill table where using the character id as the identifier. Be sure to use the character_id not the id.
 2 - [x] add a function to addCharacterSkills to the service that calls to the character-skill table wending over both the characterID and the skillID
+3 - [x] add getCharacterTalents, addCharacterTalent, and removeCharacterTalent functions for the character_talent bridge table; adding or removing a talent adjusts character_stats.xp_spent by the talent xp_cost (same pattern as skills)
 
 ---
 

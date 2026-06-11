@@ -33,5 +33,7 @@ This will be displayed in a form view and use the editableField component to dis
 20 - [x] Adjust the threshold for increasing and decreasing by ammount to be <max rather than <=max
 21 - [x] Adjust the threshold for increasing and decreasing by amount to be <=max rather than <max
 22 - [x] For Vitality, Mind, Strength, and Willpower, we should be displaying the blood minimums plus the rank calculation from the stat-calulation utils.
+23 - [x] Add an area to display a list of character talents. The talents should use the getCharacterTalents call to the database passing in the characterID, then it should display the TalentName as a list. The talents can be in the dozens so we need to make sure are creating an area to display skills properly. Add a Add Talent and Remove Talent button which should work similar to the Add Skill and Remove Skill buttons. When adding a talent, only talents with the same bloodline_id as the character should be displayed.
+24 - [x] When a user adds or removes a talent, update the xp_spent field in character_stats to match the xp_cost of that talent.
 
 ## Bug Fixes

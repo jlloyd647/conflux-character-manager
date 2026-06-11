@@ -44,6 +44,7 @@ export function AuthProvider({ children }) {
         referenceStore.loadCurses().catch(() => {})
         referenceStore.loadStatProgressions().catch(() => {})
         referenceStore.loadStats().catch(() => {})
+        referenceStore.loadTalents().catch(() => {})
       } else {
         const referenceStore = useReferenceDataStore.getState()
         referenceStore.clearSkills()
@@ -54,6 +55,7 @@ export function AuthProvider({ children }) {
         referenceStore.clearCurses()
         referenceStore.clearStatProgressions()
         referenceStore.clearStats()
+        referenceStore.clearTalents()
       }
     }
 

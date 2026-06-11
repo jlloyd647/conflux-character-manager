@@ -48,6 +48,13 @@ const CHARACTER_SKILL_COLUMNS = [
   'created_at',
 ].join(', ')
 
+const CHARACTER_TALENT_COLUMNS = [
+  'character_id',
+  'talent_id',
+  'approved',
+  'created_at',
+].join(', ')
+
 /**
  * @typedef {{
  *   id: string,
@@ -80,6 +87,15 @@ const CHARACTER_SKILL_COLUMNS = [
  *   approved: boolean,
  *   createdAt: string,
  * }} CharacterSkill
+ */
+
+/**
+ * @typedef {{
+ *   characterId: number,
+ *   talentId: number,
+ *   approved: boolean,
+ *   createdAt: string,
+ * }} CharacterTalent
  */
 
 /** @param {Record<string, unknown> | null} row */
@@ -216,8 +232,38 @@ async function getSkillXpCost(skillId) {
 }
 
 /**
+ * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
+ * @returns {Promise<number>}
+ */
+async function getTalentXpCost(talentId) {
+  const numericTalentId = Number(talentId)
+
+  if (Number.isNaN(numericTalentId)) {
+    throw new Error('Invalid talent id')
+  }
+
+  const { data, error } = await supabase
+    .from('talents')
+    .select('xp_cost')
+    .eq('talent_id', numericTalentId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Talent not found')
+  }
+
+  const xpCost = Number(data.xp_cost ?? 0)
+
+  return Number.isNaN(xpCost) ? 0 : xpCost
+}
+
+/**
  * @param {number} characterId Numeric character business id (`characters.character_id`)
- * @param {number} delta Amount to add to `xp_spent` (negative to subtract)
+ * @param {number} delta Amount to add to `character_stats.xp_spent` (negative to subtract)
  * @returns {Promise<CharacterStats>}
  */
 async function adjustCharacterXpSpent(characterId, delta) {
@@ -279,6 +325,20 @@ function mapCharacterSkillRow(row) {
   return {
     characterId: row.character_id ?? 0,
     skillId: row.skill_id ?? 0,
+    approved: row.approved ?? false,
+    createdAt: row.created_at,
+  }
+}
+
+/** @param {Record<string, unknown> | null} row */
+function mapCharacterTalentRow(row) {
+  if (!row) {
+    return null
+  }
+
+  return {
+    characterId: row.character_id ?? 0,
+    talentId: row.talent_id ?? 0,
     approved: row.approved ?? false,
     createdAt: row.created_at,
   }
@@ -870,6 +930,144 @@ export async function removeCharacterSkill(characterId, skillId) {
     .delete()
     .eq('character_id', numericCharacterId)
     .eq('skill_id', numericSkillId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return adjustCharacterXpSpent(numericCharacterId, -xpCost)
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @returns {Promise<CharacterTalent[]>}
+ */
+export async function getCharacterTalents(characterId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  const { data, error } = await supabase
+    .from('character_talent')
+    .select(CHARACTER_TALENT_COLUMNS)
+    .eq('character_id', numericCharacterId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map(mapCharacterTalentRow).filter(Boolean)
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
+ * @returns {Promise<{ characterTalent: CharacterTalent, characterStats: CharacterStats }>}
+ */
+export async function addCharacterTalent(characterId, talentId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+  const numericTalentId = Number(talentId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  if (Number.isNaN(numericTalentId)) {
+    throw new Error('Invalid talent id')
+  }
+
+  const xpCost = await getTalentXpCost(numericTalentId)
+
+  const { data, error } = await supabase
+    .from('character_talent')
+    .insert({
+      character_id: numericCharacterId,
+      talent_id: numericTalentId,
+    })
+    .select(CHARACTER_TALENT_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const characterTalent = mapCharacterTalentRow(data)
+
+  if (!characterTalent) {
+    throw new Error('Character talent not found')
+  }
+
+  const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost)
+
+  return { characterTalent, characterStats }
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
+ * @returns {Promise<CharacterStats>}
+ */
+export async function removeCharacterTalent(characterId, talentId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+  const numericTalentId = Number(talentId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  if (Number.isNaN(numericTalentId)) {
+    throw new Error('Invalid talent id')
+  }
+
+  const xpCost = await getTalentXpCost(numericTalentId)
+
+  const { error } = await supabase
+    .from('character_talent')
+    .delete()
+    .eq('character_id', numericCharacterId)
+    .eq('talent_id', numericTalentId)
 
   if (error) {
     throw new Error(error.message)

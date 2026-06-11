@@ -68,6 +68,13 @@ skill_id: int4
 approved: boolean
 created_at: datetime
 
+character_talent:
+
+character_id: int8
+skill_id: int4
+approved: boolean
+created_at: datetime
+
 ---
 
 ## Rules

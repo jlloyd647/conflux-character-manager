@@ -19,6 +19,8 @@ Store will use the Zustand library. Stores should be saved within the stores fol
 - Store will include a list of gifts
 - Store will include a list of curses
 - Store will include a list of stat progressions
+- Store will include a list of stats
+- Store will include a list of talents
 
 ## Feature Updates
 

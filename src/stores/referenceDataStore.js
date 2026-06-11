@@ -7,6 +7,7 @@ import { getAllKingroups } from '../services/kingroupService'
 import { getAllSkills } from '../services/skillService'
 import { getAllStatProgressions } from '../services/statProgressionService'
 import { getAllStats } from '../services/statDefinitionService'
+import { getAllTalents } from '../services/talentService'
 
 /**
  * @typedef {import('../services/skillService').Skill} Skill
@@ -17,12 +18,14 @@ import { getAllStats } from '../services/statDefinitionService'
  * @typedef {import('../services/curseService').Curse} Curse
  * @typedef {import('../services/statProgressionService').StatProgression} StatProgression
  * @typedef {import('../services/statDefinitionService').Stat} Stat
+ * @typedef {import('../services/talentService').Talent} Talent
  */
 
 export const useReferenceDataStore = create((set, get) => ({
   skills: [],
   skillsLoading: false,
   skillsError: null,
+  skillsLoaded: false,
   bloodlines: [],
   bloodlinesLoading: false,
   bloodlinesError: null,
@@ -44,17 +47,31 @@ export const useReferenceDataStore = create((set, get) => ({
   stats: [],
   statsLoading: false,
   statsError: null,
+  talents: [],
+  talentsLoading: false,
+  talentsError: null,
+  talentsLoaded: false,
 
   loadSkills: async () => {
+    const { skillsLoading, skillsLoaded, skills } = get()
+
+    if (skillsLoading) {
+      return skills
+    }
+
+    if (skillsLoaded) {
+      return skills
+    }
+
     set({ skillsLoading: true, skillsError: null })
 
     try {
-      const skills = await getAllSkills()
-      set({ skills, skillsLoading: false })
-      return skills
+      const nextSkills = await getAllSkills()
+      set({ skills: nextSkills, skillsLoading: false, skillsLoaded: true })
+      return nextSkills
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load skills'
-      set({ skillsError: message, skillsLoading: false })
+      set({ skillsError: message, skillsLoading: false, skillsLoaded: true })
       throw error
     }
   },
@@ -83,7 +100,8 @@ export const useReferenceDataStore = create((set, get) => ({
   getSkillBySkillID: (skillID) =>
     get().skills.find((skill) => skill.skillID === Number(skillID)) ?? null,
 
-  clearSkills: () => set({ skills: [], skillsLoading: false, skillsError: null }),
+  clearSkills: () =>
+    set({ skills: [], skillsLoading: false, skillsError: null, skillsLoaded: false }),
 
   loadBloodlines: async () => {
     set({ bloodlinesLoading: true, bloodlinesError: null })
@@ -364,4 +382,56 @@ export const useReferenceDataStore = create((set, get) => ({
     get().stats.find((stat) => stat.statID === Number(statID)) ?? null,
 
   clearStats: () => set({ stats: [], statsLoading: false, statsError: null }),
+
+  loadTalents: async () => {
+    const { talentsLoading, talentsLoaded, talents } = get()
+
+    if (talentsLoading) {
+      return talents
+    }
+
+    if (talentsLoaded) {
+      return talents
+    }
+
+    set({ talentsLoading: true, talentsError: null })
+
+    try {
+      const nextTalents = await getAllTalents()
+      set({ talents: nextTalents, talentsLoading: false, talentsLoaded: true })
+      return nextTalents
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load talents'
+      set({ talentsError: message, talentsLoading: false, talentsLoaded: true })
+      throw error
+    }
+  },
+
+  setTalents: (talents) => set({ talents }),
+
+  upsertTalent: (talent) =>
+    set((state) => {
+      const index = state.talents.findIndex((entry) => entry.talentID === talent.talentID)
+
+      if (index >= 0) {
+        const talents = [...state.talents]
+        talents[index] = talent
+        return { talents }
+      }
+
+      return {
+        talents: [...state.talents, talent].sort(
+          (left, right) => left.talentID - right.talentID,
+        ),
+      }
+    }),
+
+  getTalentByTalentID: (talentID) =>
+    get().talents.find((talent) => talent.talentID === Number(talentID)) ?? null,
+
+  getTalentsByBloodlineID: (bloodlineID) =>
+    get().talents.filter((talent) => talent.talentBloodlineID === Number(bloodlineID)),
+
+  clearTalents: () =>
+    set({ talents: [], talentsLoading: false, talentsError: null, talentsLoaded: false }),
 }))

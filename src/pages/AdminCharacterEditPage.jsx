@@ -7,13 +7,16 @@ import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
 import {
   addCharacterSkills,
+  addCharacterTalent,
   applyCharacterXpSpentDelta,
   changeCharacterBloodline,
   createCharacter,
   getCharacterById,
   getCharacterSkills,
   getCharacterStats,
+  getCharacterTalents,
   removeCharacterSkill,
+  removeCharacterTalent,
   toPageStatValues,
   updateCharacterColumnById,
   updateCharacterStatsAndXpSpent,
@@ -46,6 +49,14 @@ const skillPickerColumns = [
   { key: 'costXP', header: 'XP Cost' },
   { key: 'costWill', header: 'Will Cost' },
   { key: 'costMind', header: 'Mind Cost' },
+]
+
+const talentPickerColumns = [
+  { key: 'talentID', header: 'Talent ID' },
+  { key: 'talentName', header: 'Name' },
+  { key: 'talentDescription', header: 'Description' },
+  { key: 'talentLevel', header: 'Level' },
+  { key: 'talentXPCost', header: 'XP Cost' },
 ]
 
 const CHARACTER_STAT_FIELDS = [
@@ -144,6 +155,11 @@ export default function AdminCharacterEditPage() {
     skills: [],
     error: '',
   })
+  const [characterTalentsState, setCharacterTalentsState] = useState({
+    characterId: null,
+    talents: [],
+    error: '',
+  })
   const [characterStatsState, setCharacterStatsState] = useState({
     characterId: null,
     stats: null,
@@ -151,10 +167,19 @@ export default function AdminCharacterEditPage() {
   })
   const [showSkillPicker, setShowSkillPicker] = useState(false)
   const [showSkillRemover, setShowSkillRemover] = useState(false)
+  const [showTalentPicker, setShowTalentPicker] = useState(false)
+  const [showTalentRemover, setShowTalentRemover] = useState(false)
   const allSkills = useReferenceDataStore((state) => state.skills)
   const allSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
+  const skillsLoaded = useReferenceDataStore((state) => state.skillsLoaded)
   const loadSkills = useReferenceDataStore((state) => state.loadSkills)
   const getSkillBySkillID = useReferenceDataStore((state) => state.getSkillBySkillID)
+  const allTalentsLoading = useReferenceDataStore((state) => state.talentsLoading)
+  const talentsLoaded = useReferenceDataStore((state) => state.talentsLoaded)
+  const referenceTalentsError = useReferenceDataStore((state) => state.talentsError)
+  const loadTalents = useReferenceDataStore((state) => state.loadTalents)
+  const getTalentByTalentID = useReferenceDataStore((state) => state.getTalentByTalentID)
+  const getTalentsByBloodlineID = useReferenceDataStore((state) => state.getTalentsByBloodlineID)
   const bloodlines = useReferenceDataStore((state) => state.bloodlines)
   const loadBloodlines = useReferenceDataStore((state) => state.loadBloodlines)
   const kingroups = useReferenceDataStore((state) => state.kingroups)
@@ -170,6 +195,8 @@ export default function AdminCharacterEditPage() {
   const loadCurses = useReferenceDataStore((state) => state.loadCurses)
   const [addingSkill, setAddingSkill] = useState(false)
   const [removingSkill, setRemovingSkill] = useState(false)
+  const [addingTalent, setAddingTalent] = useState(false)
+  const [removingTalent, setRemovingTalent] = useState(false)
   const [statsEditing, setStatsEditing] = useState(false)
   const [statsEditBase, setStatsEditBase] = useState(EMPTY_STATS)
   const [draftStats, setDraftStats] = useState(EMPTY_STATS)
@@ -257,6 +284,39 @@ export default function AdminCharacterEditPage() {
     const characterId = character.characterId
     let active = true
 
+    getCharacterTalents(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterTalentsState({
+            characterId,
+            talents: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterTalentsState({
+            characterId,
+            talents: [],
+            error: loadError.message,
+          })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [authLoading, isCreateMode, character?.characterId])
+
+  useEffect(() => {
+    if (authLoading || isCreateMode || !character?.characterId) {
+      return undefined
+    }
+
+    const characterId = character.characterId
+    let active = true
+
     getCharacterStats(characterId)
       .then((data) => {
         if (active) {
@@ -291,6 +351,15 @@ export default function AdminCharacterEditPage() {
     !isCreateMode &&
     characterSkillsState.characterId !== character?.characterId
   const skillsError = characterSkillsState.error
+  const characterTalents =
+    characterTalentsState.characterId === character?.characterId
+      ? characterTalentsState.talents
+      : []
+  const talentsLoading =
+    Boolean(character?.characterId) &&
+    !isCreateMode &&
+    characterTalentsState.characterId !== character?.characterId
+  const talentsError = characterTalentsState.error
   const characterStats =
     characterStatsState.characterId === character?.characterId
       ? characterStatsState.stats
@@ -307,12 +376,19 @@ export default function AdminCharacterEditPage() {
     }))
   }
 
+  function setTalentsError(message) {
+    setCharacterTalentsState((previous) => ({
+      ...previous,
+      error: message,
+    }))
+  }
+
   useEffect(() => {
     if (authLoading || isCreateMode || !character?.characterId) {
       return undefined
     }
 
-    if (!allSkills.length && !allSkillsLoading) {
+    if (!skillsLoaded && !allSkillsLoading) {
       loadSkills().catch((loadError) => {
         setSkillsError(loadError.message)
       })
@@ -321,7 +397,7 @@ export default function AdminCharacterEditPage() {
     authLoading,
     isCreateMode,
     character?.characterId,
-    allSkills.length,
+    skillsLoaded,
     allSkillsLoading,
     loadSkills,
   ])
@@ -387,14 +463,22 @@ export default function AdminCharacterEditPage() {
   ])
 
   useEffect(() => {
-    if (authLoading || !showSkillPicker || allSkills.length || allSkillsLoading) {
+    if (authLoading || !showSkillPicker || allSkillsLoading || skillsLoaded) {
       return undefined
     }
 
     loadSkills().catch((loadError) => {
       setSkillsError(loadError.message)
     })
-  }, [authLoading, showSkillPicker, allSkills.length, allSkillsLoading, loadSkills])
+  }, [authLoading, showSkillPicker, allSkillsLoading, skillsLoaded, loadSkills])
+
+  useEffect(() => {
+    if (authLoading || !showTalentPicker || allTalentsLoading || talentsLoaded) {
+      return undefined
+    }
+
+    loadTalents().catch(() => {})
+  }, [authLoading, showTalentPicker, allTalentsLoading, talentsLoaded, loadTalents])
 
   async function handleAddSkill(row) {
     if (!character?.characterId || addingSkill) {
@@ -481,6 +565,91 @@ export default function AdminCharacterEditPage() {
     }
   }
 
+  async function handleAddTalent(row) {
+    if (!character?.characterId || addingTalent) {
+      return
+    }
+
+    const talentId = Number(row.talentID)
+
+    if (Number.isNaN(talentId)) {
+      setTalentsError('Invalid talent id')
+      return
+    }
+
+    if (characterTalents.some((talent) => talent.talentId === talentId)) {
+      setTalentsError('Talent is already assigned to this character.')
+      return
+    }
+
+    setAddingTalent(true)
+    setTalentsError('')
+
+    try {
+      const { characterTalent, characterStats: updatedCharacterStats } =
+        await addCharacterTalent(character.characterId, talentId)
+      setCharacterStatsState((previous) => ({
+        ...previous,
+        characterId: character.characterId,
+        stats: updatedCharacterStats,
+        error: '',
+      }))
+      setCharacterTalentsState((previous) => ({
+        ...previous,
+        talents: [...previous.talents, characterTalent],
+        error: '',
+      }))
+      setShowTalentPicker(false)
+    } catch (addError) {
+      setTalentsError(addError.message)
+    } finally {
+      setAddingTalent(false)
+    }
+  }
+
+  async function handleRemoveTalent(talent) {
+    if (!character?.characterId || removingTalent) {
+      return
+    }
+
+    const talentId = Number(talent.talentId)
+
+    if (Number.isNaN(talentId)) {
+      setTalentsError('Invalid talent id')
+      return
+    }
+
+    setRemovingTalent(true)
+    setTalentsError('')
+
+    try {
+      const updatedCharacterStats = await removeCharacterTalent(character.characterId, talentId)
+      setCharacterStatsState((previous) => ({
+        ...previous,
+        characterId: character.characterId,
+        stats: updatedCharacterStats,
+        error: '',
+      }))
+      setCharacterTalentsState((previous) => {
+        const talents = previous.talents.filter((entry) => entry.talentId !== talentId)
+
+        if (talents.length === 0) {
+          setShowTalentRemover(false)
+        }
+
+        return {
+          ...previous,
+          talents,
+          error: '',
+        }
+      })
+    } catch (removeError) {
+      setTalentsError(removeError.message)
+    } finally {
+      setRemovingTalent(false)
+    }
+  }
+
   function updateCharacterField(field, parser = (value) => value) {
     return async (nextValue) => {
       const parsed = parser(nextValue)
@@ -535,6 +704,14 @@ export default function AdminCharacterEditPage() {
       stats: characterStats,
       error: '',
     }))
+    setCharacterTalentsState((previous) => ({
+      ...previous,
+      characterId: updatedCharacter.characterId,
+      talents: [],
+      error: '',
+    }))
+    setShowTalentPicker(false)
+    setShowTalentRemover(false)
     setStatsEditing(false)
     setStatsEditBase(EMPTY_STATS)
     setDraftStats(EMPTY_STATS)
@@ -600,6 +777,24 @@ export default function AdminCharacterEditPage() {
   function getSkillDisplayName(skillId) {
     return getSkillBySkillID(skillId)?.skillName ?? String(skillId)
   }
+
+  function getTalentDisplayName(talentId) {
+    return getTalentByTalentID(talentId)?.talentName ?? String(talentId)
+  }
+
+  const bloodlineTalentOptions = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return []
+    }
+
+    const assignedTalentIds = new Set(characterTalents.map((talent) => talent.talentId))
+
+    return getTalentsByBloodlineID(bloodlineId).filter(
+      (talent) => !assignedTalentIds.has(talent.talentID),
+    )
+  }, [activeCharacter?.bloodlineId, characterTalents, getTalentsByBloodlineID])
 
   const bloodlineOptions = useMemo(
     () =>
@@ -1120,6 +1315,131 @@ export default function AdminCharacterEditPage() {
                   </ul>
                 ) : (
                   <p className="character-skills-empty">No skills found.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && !isCreateMode && character ? (
+        <section className="dashboard-section">
+          <div className="character-skills-header">
+            <h2 className="dashboard-section-title">Talents</h2>
+            <div className="character-skills-header-actions">
+              {showTalentPicker || showTalentRemover ? (
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={addingTalent || removingTalent}
+                  onClick={() => {
+                    setShowTalentPicker(false)
+                    setShowTalentRemover(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    disabled={!activeCharacter?.bloodlineId}
+                    onClick={() => {
+                      setShowTalentRemover(false)
+                      setShowTalentPicker(true)
+                    }}
+                  >
+                    Add Talent
+                  </button>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    onClick={() => {
+                      setShowTalentPicker(false)
+                      setShowTalentRemover(true)
+                    }}
+                  >
+                    Remove Talent
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="dashboard-card character-skills-card">
+            {talentsError || (showTalentPicker && referenceTalentsError) ? (
+              <p className="list-page-error" role="alert">
+                {talentsError || referenceTalentsError}
+              </p>
+            ) : null}
+
+            {showTalentPicker ? (
+              !activeCharacter?.bloodlineId ? (
+                <p className="character-skills-empty character-skills-status">
+                  Select a bloodline to add talents.
+                </p>
+              ) : allTalentsLoading || addingTalent ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  {addingTalent ? 'Adding talent…' : 'Loading talents…'}
+                </p>
+              ) : (
+                <DataTable
+                  data={bloodlineTalentOptions}
+                  columns={talentPickerColumns}
+                  emptyMessage="No talents found for this bloodline."
+                  onRowClick={handleAddTalent}
+                />
+              )
+            ) : showTalentRemover ? (
+              removingTalent ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Removing talent…
+                </p>
+              ) : talentsLoading ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Loading talents…
+                </p>
+              ) : characterTalents.length ? (
+                <div className="character-skills-list">
+                  <ul className="character-skills-items">
+                    {characterTalents.map((talent) => (
+                      <li key={`${talent.characterId}-${talent.talentId}`}>
+                        <button
+                          type="button"
+                          className="character-skills-item character-skills-item-button"
+                          disabled={removingTalent}
+                          onClick={() => handleRemoveTalent(talent)}
+                        >
+                          {getTalentDisplayName(talent.talentId)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="character-skills-empty character-skills-status">
+                  No talents to remove.
+                </p>
+              )
+            ) : talentsLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading talents…
+              </p>
+            ) : (
+              <div className="character-skills-list">
+                {characterTalents.length ? (
+                  <ul className="character-skills-items">
+                    {characterTalents.map((talent) => (
+                      <li
+                        key={`${talent.characterId}-${talent.talentId}`}
+                        className="character-skills-item"
+                      >
+                        {getTalentDisplayName(talent.talentId)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="character-skills-empty">No talents found.</p>
                 )}
               </div>
             )}
