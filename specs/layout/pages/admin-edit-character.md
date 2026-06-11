@@ -20,5 +20,8 @@ This will be displayed in a form view and use the editableField component to dis
 8 - [x] Add an area to display a list of blood line gifts. The gifts should come from the gifts in ReferenceDataStore and should only display gifts that match the characters bloodline_id.
 9 - [x] Add an area to display a list of blood line curses. The curses should come from the curses in ReferenceDataStore and should only display curses that match the characters bloodline_id.
 10 - [x] Add four new editableFields components, Strength, Vitality, Mind, and Willpower. These fields should be set to not be editable and should display the minStrength, minVitality, minMind, and minWillpower for the characters bloodline.
-
+11 - [x] Add an area to display character stats, Vitality, Mind, Strength, and Willpower. Use the NumericField component to display these stats. Remove Vitality, Mind, Strength, and Willpower from the character portion of the admin page.
+12 - [x] Remove the characterID as an editable field and put it to the left of the player name, sperated by a |
+13 - [x] Remove the playerID as an editable field and put it to the right of the player name, seperated by a -
+14 - [x] Add a bit more space between the CharacterID, Name, and playerID. About 15px.
 ## Bug Fixes

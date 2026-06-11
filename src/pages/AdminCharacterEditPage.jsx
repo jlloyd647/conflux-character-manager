@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import NumericField from '../components/NumericField'
 import DataTable from '../components/DataTable'
 import DropdownField from '../components/DropdownField'
 import EditableField from '../components/EditableField'
@@ -9,7 +10,10 @@ import {
   createCharacter,
   getCharacterById,
   getCharacterSkills,
+  getCharacterStats,
+  toPageStatValues,
   updateCharacterColumnById,
+  updateCharacterStatsById,
 } from '../services/characterService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
@@ -30,6 +34,20 @@ const skillPickerColumns = [
   { key: 'costWill', header: 'Will Cost' },
   { key: 'costMind', header: 'Mind Cost' },
 ]
+
+const CHARACTER_STAT_FIELDS = [
+  { key: 'vitality', label: 'Vitality', minKey: 'minVitality', maxKey: 'maxVitality' },
+  { key: 'mind', label: 'Mind', minKey: 'minMind', maxKey: 'maxMind' },
+  { key: 'strength', label: 'Strength', minKey: 'minStrength', maxKey: 'maxStrength' },
+  { key: 'willpower', label: 'Willpower', minKey: 'minWillpower', maxKey: 'maxWillpower' },
+]
+
+const EMPTY_STATS = {
+  vitality: null,
+  mind: null,
+  strength: null,
+  willpower: null,
+}
 
 function parseIntegerField(value, label) {
   const parsed = Number.parseInt(String(value).trim(), 10)
@@ -67,12 +85,26 @@ function formatKingroupValue(kingroupId) {
   return String(kingroupId)
 }
 
-function formatStatValue(value) {
-  if (value === null || value === undefined) {
-    return ''
+function toStatNumber(value, fallback = null) {
+  if (value !== null && value !== undefined && value !== '') {
+    const parsed = Number(value)
+
+    return Number.isFinite(parsed) ? parsed : fallback
   }
 
-  return String(value)
+  return fallback
+}
+
+function resolveCharacterStats(source, bloodline, draft = null) {
+  const pick = (key, minKey) =>
+    toStatNumber(draft?.[key] ?? source?.[key], bloodline?.[minKey] ?? null)
+
+  return {
+    vitality: pick('vitality', 'minVitality'),
+    mind: pick('mind', 'minMind'),
+    strength: pick('strength', 'minStrength'),
+    willpower: pick('willpower', 'minWillpower'),
+  }
 }
 
 function ReadOnlyField({ label, value }) {
@@ -99,6 +131,11 @@ export default function AdminCharacterEditPage() {
     skills: [],
     error: '',
   })
+  const [characterStatsState, setCharacterStatsState] = useState({
+    characterId: null,
+    stats: null,
+    error: '',
+  })
   const [showSkillPicker, setShowSkillPicker] = useState(false)
   const allSkills = useReferenceDataStore((state) => state.skills)
   const allSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
@@ -118,6 +155,10 @@ export default function AdminCharacterEditPage() {
   const cursesLoading = useReferenceDataStore((state) => state.cursesLoading)
   const loadCurses = useReferenceDataStore((state) => state.loadCurses)
   const [addingSkill, setAddingSkill] = useState(false)
+  const [statsEditing, setStatsEditing] = useState(false)
+  const [draftStats, setDraftStats] = useState(EMPTY_STATS)
+  const [savingStats, setSavingStats] = useState(false)
+  const [statsError, setStatsError] = useState('')
 
   useEffect(() => {
     if (authLoading || isCreateMode) {
@@ -188,6 +229,39 @@ export default function AdminCharacterEditPage() {
     }
   }, [authLoading, isCreateMode, character?.characterId])
 
+  useEffect(() => {
+    if (authLoading || isCreateMode || !character?.characterId) {
+      return undefined
+    }
+
+    const characterId = character.characterId
+    let active = true
+
+    getCharacterStats(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterStatsState({
+            characterId,
+            stats: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterStatsState({
+            characterId,
+            stats: null,
+            error: loadError.message,
+          })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [authLoading, isCreateMode, character?.characterId])
+
   const characterSkills =
     characterSkillsState.characterId === character?.characterId
       ? characterSkillsState.skills
@@ -197,6 +271,14 @@ export default function AdminCharacterEditPage() {
     !isCreateMode &&
     characterSkillsState.characterId !== character?.characterId
   const skillsError = characterSkillsState.error
+  const characterStats =
+    characterStatsState.characterId === character?.characterId
+      ? characterStatsState.stats
+      : null
+  const statsLoading =
+    Boolean(character?.characterId) &&
+    !isCreateMode &&
+    characterStatsState.characterId !== character?.characterId
 
   function setSkillsError(message) {
     setCharacterSkillsState((previous) => ({
@@ -350,12 +432,21 @@ export default function AdminCharacterEditPage() {
         throw new Error('Player ID is required.')
       }
 
+      const bloodlineId = parseIntegerField(draftCharacter.bloodlineId, 'Bloodline ID')
+      const bloodline = bloodlines.find((entry) => entry.bloodlineID === bloodlineId) ?? null
+      const stats = resolveCharacterStats(
+        draftCharacter,
+        bloodline,
+        statsEditing ? draftStats : null,
+      )
+
       const createdCharacter = await createCharacter({
         characterName,
         playerId,
         bloodlineId: parseIntegerField(draftCharacter.bloodlineId, 'Bloodline ID'),
         kingroupId: parseOptionalIntegerField(draftCharacter.kingroupId, 'Kin Group'),
         xp: parseIntegerField(draftCharacter.xp, 'XP'),
+        stats,
       })
 
       navigate(`/admin/characters/${createdCharacter.id}/edit`, { replace: true })
@@ -407,6 +498,80 @@ export default function AdminCharacterEditPage() {
 
     return bloodlines.find((bloodline) => bloodline.bloodlineID === bloodlineId) ?? null
   }, [bloodlines, activeCharacter?.bloodlineId])
+
+  const pageStatSource = useMemo(() => {
+    if (isCreateMode) {
+      return draftCharacter
+    }
+
+    return toPageStatValues(characterStats) ?? {}
+  }, [isCreateMode, draftCharacter, characterStats])
+
+  const currentStats = useMemo(
+    () =>
+      resolveCharacterStats(
+        pageStatSource,
+        activeBloodline,
+        statsEditing ? draftStats : null,
+      ),
+    [pageStatSource, activeBloodline, statsEditing, draftStats],
+  )
+
+  function startStatsEditing() {
+    setDraftStats(currentStats)
+    setStatsError('')
+    setStatsEditing(true)
+  }
+
+  function cancelStatsEditing() {
+    setDraftStats(EMPTY_STATS)
+    setStatsError('')
+    setStatsEditing(false)
+  }
+
+  function updateDraftStat(key, value) {
+    setDraftStats((previous) => ({
+      ...previous,
+      [key]: value,
+    }))
+  }
+
+  async function confirmStatsEditing() {
+    setSavingStats(true)
+    setStatsError('')
+
+    try {
+      if (isCreateMode) {
+        setDraftCharacter((previous) => ({
+          ...previous,
+          ...draftStats,
+        }))
+        setStatsEditing(false)
+        setDraftStats(EMPTY_STATS)
+        return
+      }
+
+      if (!character?.characterId) {
+        throw new Error('Character not found')
+      }
+
+      const updatedStats = await updateCharacterStatsById(
+        character.characterId,
+        draftStats,
+      )
+      setCharacterStatsState({
+        characterId: character.characterId,
+        stats: updatedStats,
+        error: '',
+      })
+      setStatsEditing(false)
+      setDraftStats(EMPTY_STATS)
+    } catch (saveError) {
+      setStatsError(saveError.message)
+    } finally {
+      setSavingStats(false)
+    }
+  }
 
   const bloodlineBanes = useMemo(() => {
     const bloodlineId = Number(activeCharacter?.bloodlineId)
@@ -460,14 +625,47 @@ export default function AdminCharacterEditPage() {
       {!authLoading && !loading && showForm ? (
         <section className="dashboard-section">
           <div className="dashboard-card dashboard-profile-card">
-            <div className="dashboard-profile-field">
-              <EditableField
-                value={formatFieldValue(headerName)}
-                placeholder="Character name"
-                fontSizePx={32}
-                editLabel="Edit character name"
-                onSave={updateCharacterField('characterName', (value) => value.trim())}
-              />
+            <div className="dashboard-profile-field character-edit-header">
+              {!isCreateMode && character?.characterId ? (
+                <span className="character-edit-header-id" style={{ fontSize: '32px' }}>
+                  {character.characterId}
+                  <span className="character-edit-header-separator" aria-hidden="true">
+                    {' '}|{' '}
+                  </span>
+                </span>
+              ) : null}
+              <div className="character-edit-header-name">
+                <EditableField
+                  value={formatFieldValue(headerName)}
+                  placeholder="Character name"
+                  fontSizePx={32}
+                  editLabel="Edit character name"
+                  onSave={updateCharacterField('characterName', (value) => value.trim())}
+                />
+              </div>
+              {isCreateMode ? (
+                <>
+                  <span className="character-edit-header-separator" aria-hidden="true">
+                    {' '}-{' '}
+                  </span>
+                  <div className="character-edit-header-player">
+                    <EditableField
+                      value={formatFieldValue(activeCharacter?.playerId)}
+                      placeholder="Player UUID"
+                      fontSizePx={32}
+                      editLabel="Edit player ID"
+                      onSave={updateCharacterField('playerId', (value) => value.trim())}
+                    />
+                  </div>
+                </>
+              ) : (
+                <span className="character-edit-header-player-id" style={{ fontSize: '32px' }}>
+                  <span className="character-edit-header-separator" aria-hidden="true">
+                    {' '}-{' '}
+                  </span>
+                  {formatFieldValue(activeCharacter?.playerId)}
+                </span>
+              )}
             </div>
             <div className="dashboard-profile-grid">
               <div className="dashboard-profile-field">
@@ -505,55 +703,6 @@ export default function AdminCharacterEditPage() {
                   )}
                 />
               </div>
-              <div className="dashboard-profile-field">
-                <EditableField
-                  label="Strength"
-                  value={formatStatValue(activeBloodline?.minStrength)}
-                  disabled
-                />
-              </div>
-              <div className="dashboard-profile-field">
-                <EditableField
-                  label="Vitality"
-                  value={formatStatValue(activeBloodline?.minVitality)}
-                  disabled
-                />
-              </div>
-              <div className="dashboard-profile-field">
-                <EditableField
-                  label="Mind"
-                  value={formatStatValue(activeBloodline?.minMind)}
-                  disabled
-                />
-              </div>
-              <div className="dashboard-profile-field">
-                <EditableField
-                  label="Willpower"
-                  value={formatStatValue(activeBloodline?.minWillpower)}
-                  disabled
-                />
-              </div>
-              {isCreateMode ? (
-                <div className="dashboard-profile-field">
-                  <EditableField
-                    label="Player ID"
-                    value={formatFieldValue(activeCharacter?.playerId)}
-                    placeholder="Player UUID"
-                    onSave={updateCharacterField('playerId', (value) => value.trim())}
-                  />
-                </div>
-              ) : (
-                <ReadOnlyField
-                  label="Player ID"
-                  value={formatFieldValue(character?.playerId)}
-                />
-              )}
-              {!isCreateMode && character?.characterId ? (
-                <ReadOnlyField
-                  label="Character ID"
-                  value={formatFieldValue(character.characterId)}
-                />
-              ) : null}
               {!isCreateMode && character?.createdAt ? (
                 <ReadOnlyField
                   label="Created"
@@ -561,6 +710,76 @@ export default function AdminCharacterEditPage() {
                 />
               ) : null}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {!authLoading && !loading && showForm ? (
+        <section className="dashboard-section">
+          <div className="character-skills-header">
+            <h2 className="dashboard-section-title">Character Stats</h2>
+            {statsEditing ? (
+              <div className="character-skills-header-actions">
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={savingStats}
+                  onClick={confirmStatsEditing}
+                >
+                  {savingStats ? 'Saving…' : 'Confirm'}
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={savingStats}
+                  onClick={cancelStatsEditing}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="dashboard-action-link character-skills-action"
+                disabled={!activeBloodline || statsLoading}
+                onClick={startStatsEditing}
+              >
+                Edit Stats
+              </button>
+            )}
+          </div>
+          <div className="dashboard-card dashboard-profile-card">
+            {statsError || characterStatsState.error ? (
+              <p className="list-page-error" role="alert">
+                {statsError || characterStatsState.error}
+              </p>
+            ) : null}
+
+            {!activeBloodline ? (
+              <p className="character-skills-empty character-skills-status">
+                Select a bloodline to view stats.
+              </p>
+            ) : statsLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading stats…
+              </p>
+            ) : (
+              <div className="dashboard-profile-grid">
+                {CHARACTER_STAT_FIELDS.map((stat) => (
+                  <div key={stat.key} className="dashboard-profile-field">
+                    <NumericField
+                      label={stat.label}
+                      value={currentStats[stat.key]}
+                      draftValue={draftStats[stat.key]}
+                      min={activeBloodline?.[stat.minKey] ?? undefined}
+                      max={activeBloodline?.[stat.maxKey] ?? undefined}
+                      isEditing={statsEditing}
+                      onChange={(value) => updateDraftStat(stat.key, value)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       ) : null}

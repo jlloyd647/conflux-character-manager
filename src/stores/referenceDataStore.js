@@ -5,6 +5,7 @@ import { getAllCurses } from '../services/curseService'
 import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
 import { getAllSkills } from '../services/skillService'
+import { getAllStatProgressions } from '../services/statProgressionService'
 
 /**
  * @typedef {import('../services/skillService').Skill} Skill
@@ -13,6 +14,7 @@ import { getAllSkills } from '../services/skillService'
  * @typedef {import('../services/baneService').Bane} Bane
  * @typedef {import('../services/giftService').Gift} Gift
  * @typedef {import('../services/curseService').Curse} Curse
+ * @typedef {import('../services/statProgressionService').StatProgression} StatProgression
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -34,6 +36,9 @@ export const useReferenceDataStore = create((set, get) => ({
   curses: [],
   cursesLoading: false,
   cursesError: null,
+  statProgressions: [],
+  statProgressionsLoading: false,
+  statProgressionsError: null,
 
   loadSkills: async () => {
     set({ skillsLoading: true, skillsError: null })
@@ -282,4 +287,55 @@ export const useReferenceDataStore = create((set, get) => ({
     get().curses.filter((curse) => curse.bloodlineID === Number(bloodlineID)),
 
   clearCurses: () => set({ curses: [], cursesLoading: false, cursesError: null }),
+
+  loadStatProgressions: async () => {
+    set({ statProgressionsLoading: true, statProgressionsError: null })
+
+    try {
+      const statProgressions = await getAllStatProgressions()
+      set({ statProgressions, statProgressionsLoading: false })
+      return statProgressions
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load stat progressions'
+      set({ statProgressionsError: message, statProgressionsLoading: false })
+      throw error
+    }
+  },
+
+  setStatProgressions: (statProgressions) => set({ statProgressions }),
+
+  upsertStatProgression: (statProgression) =>
+    set((state) => {
+      const index = state.statProgressions.findIndex(
+        (entry) => entry.progressionID === statProgression.progressionID,
+      )
+
+      if (index >= 0) {
+        const statProgressions = [...state.statProgressions]
+        statProgressions[index] = statProgression
+        return { statProgressions }
+      }
+
+      return {
+        statProgressions: [...state.statProgressions, statProgression].sort(
+          (left, right) => left.progressionID - right.progressionID,
+        ),
+      }
+    }),
+
+  getStatProgressionByProgressionID: (progressionID) =>
+    get().statProgressions.find(
+      (progression) => progression.progressionID === Number(progressionID),
+    ) ?? null,
+
+  getStatProgressionsByStatID: (statID) =>
+    get().statProgressions.filter((progression) => progression.statID === Number(statID)),
+
+  clearStatProgressions: () =>
+    set({
+      statProgressions: [],
+      statProgressionsLoading: false,
+      statProgressionsError: null,
+    }),
 }))
