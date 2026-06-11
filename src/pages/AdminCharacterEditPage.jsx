@@ -18,6 +18,7 @@ const EMPTY_CHARACTER = {
   characterName: '',
   playerId: '',
   bloodlineId: '',
+  kingroupId: '',
   xp: '0',
 }
 
@@ -40,12 +41,30 @@ function parseIntegerField(value, label) {
   return parsed
 }
 
+function parseOptionalIntegerField(value, label) {
+  const trimmed = String(value).trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  return parseIntegerField(trimmed, label)
+}
+
 function formatFieldValue(value) {
   if (value === null || value === undefined) {
     return ''
   }
 
   return String(value)
+}
+
+function formatKingroupValue(kingroupId) {
+  if (kingroupId === null || kingroupId === undefined || kingroupId === '') {
+    return ''
+  }
+
+  return String(kingroupId)
 }
 
 function ReadOnlyField({ label, value }) {
@@ -79,6 +98,8 @@ export default function AdminCharacterEditPage() {
   const getSkillBySkillID = useReferenceDataStore((state) => state.getSkillBySkillID)
   const bloodlines = useReferenceDataStore((state) => state.bloodlines)
   const loadBloodlines = useReferenceDataStore((state) => state.loadBloodlines)
+  const kingroups = useReferenceDataStore((state) => state.kingroups)
+  const loadKingroups = useReferenceDataStore((state) => state.loadKingroups)
   const [addingSkill, setAddingSkill] = useState(false)
 
   useEffect(() => {
@@ -191,12 +212,17 @@ export default function AdminCharacterEditPage() {
       return undefined
     }
 
-    const { bloodlines, bloodlinesLoading } = useReferenceDataStore.getState()
+    const { bloodlines, bloodlinesLoading, kingroups, kingroupsLoading } =
+      useReferenceDataStore.getState()
 
     if (!bloodlines.length && !bloodlinesLoading) {
       loadBloodlines().catch(() => {})
     }
-  }, [authLoading, loadBloodlines])
+
+    if (!kingroups.length && !kingroupsLoading) {
+      loadKingroups().catch(() => {})
+    }
+  }, [authLoading, loadBloodlines, loadKingroups])
 
   useEffect(() => {
     if (authLoading || !showSkillPicker || allSkills.length || allSkillsLoading) {
@@ -289,6 +315,7 @@ export default function AdminCharacterEditPage() {
         characterName,
         playerId,
         bloodlineId: parseIntegerField(draftCharacter.bloodlineId, 'Bloodline ID'),
+        kingroupId: parseOptionalIntegerField(draftCharacter.kingroupId, 'Kin Group'),
         xp: parseIntegerField(draftCharacter.xp, 'XP'),
       })
 
@@ -316,6 +343,21 @@ export default function AdminCharacterEditPage() {
       })),
     [bloodlines],
   )
+
+  const kingroupOptions = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return []
+    }
+
+    return kingroups
+      .filter((kingroup) => kingroup.bloodlineID === bloodlineId)
+      .map((kingroup) => ({
+        value: kingroup.kingroupID,
+        label: kingroup.kingroupName,
+      }))
+  }, [kingroups, activeCharacter?.bloodlineId])
 
   return (
     <div className="edit-page">
@@ -368,6 +410,19 @@ export default function AdminCharacterEditPage() {
                   editLabel="Edit bloodline"
                   onSave={updateCharacterField('bloodlineId', (value) =>
                     parseIntegerField(value, 'Bloodline'),
+                  )}
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <DropdownField
+                  label="Kin Group"
+                  value={formatKingroupValue(activeCharacter?.kingroupId)}
+                  options={kingroupOptions}
+                  placeholder="Select kingroup"
+                  fallback="Select kingroup"
+                  editLabel="Edit kin group"
+                  onSave={updateCharacterField('kingroupId', (value) =>
+                    parseOptionalIntegerField(value, 'Kin Group'),
                   )}
                 />
               </div>

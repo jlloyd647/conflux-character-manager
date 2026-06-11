@@ -14,7 +14,9 @@ Store will use the Zustand library. Stores should be saved within the stores fol
 - Stores will be updated when the application makes a change to the database
 - Store will include a list of skills
 - Store will include a list of bloodlines
+- Store will include a list of kingroups
 
 ## Feature Updates
 
 1 - [x] We need to add bloodlines to the store as well, they are connected to the bloodlines database.
+2 - [x] We need to add kingroups to the store as well, they are connected to the kingroups database.

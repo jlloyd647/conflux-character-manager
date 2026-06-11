@@ -7,6 +7,7 @@ const CHARACTER_COLUMNS = [
   'xp',
   'player_id',
   'bloodline_id',
+  'kingroup_id',
   'created_at',
 ].join(', ')
 
@@ -16,6 +17,7 @@ const CHARACTER_FIELD_TO_COLUMN = {
   playerId: 'player_id',
   xp: 'xp',
   bloodlineId: 'bloodline_id',
+  kingroupId: 'kingroup_id',
 }
 
 const UPDATABLE_CHARACTER_COLUMNS = new Set(
@@ -39,6 +41,7 @@ const CHARACTER_SKILL_COLUMNS = [
  *   xp: number,
  *   playerId: string,
  *   bloodlineId: number,
+ *   kingroupId: number | null,
  *   createdAt: string,
  * }} Character
  */
@@ -65,6 +68,7 @@ function mapCharacterRow(row) {
     xp: row.xp ?? 0,
     playerId: row.player_id,
     bloodlineId: row.bloodline_id ?? 0,
+    kingroupId: row.kingroup_id ?? null,
     createdAt: row.created_at,
   }
 }
@@ -99,7 +103,7 @@ export async function listCharacters() {
 
   const { data, error } = await supabase
     .from('characters')
-    .select('id, character_id, character_name, player_id, xp, bloodline_id, created_at')
+    .select('id, character_id, character_name, player_id, xp, bloodline_id, kingroup_id, created_at')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -176,11 +180,18 @@ export async function getCharactersByPlayerId(playerId) {
  *   characterName: string,
  *   playerId: string,
  *   bloodlineId: number,
+ *   kingroupId?: number | null,
  *   xp?: number,
  * }} input
  * @returns {Promise<Character>}
  */
-export async function createCharacter({ characterName, playerId, bloodlineId, xp = 0 }) {
+export async function createCharacter({
+  characterName,
+  playerId,
+  bloodlineId,
+  kingroupId = null,
+  xp = 0,
+}) {
   const {
     data: { user },
     error: authError,
@@ -200,6 +211,7 @@ export async function createCharacter({ characterName, playerId, bloodlineId, xp
       character_name: characterName,
       player_id: playerId,
       bloodline_id: bloodlineId,
+      kingroup_id: kingroupId,
       xp,
     })
     .select(CHARACTER_COLUMNS)
@@ -221,7 +233,7 @@ export async function createCharacter({ characterName, playerId, bloodlineId, xp
 /**
  * @param {string} characterId
  * @param {string} column App field name (e.g. characterName) or database column (e.g. character_name)
- * @param {string | number} value
+ * @param {string | number | null} value
  * @returns {Promise<Character>}
  */
 export async function updateCharacterColumnById(characterId, column, value) {

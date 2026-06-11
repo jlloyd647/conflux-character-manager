@@ -4,3 +4,5 @@ functionality up to prod.
 [] Investigate realtime database updates
 
 [] Investigate which user roles can access which database commands
+
+[] If Bloodline is changed erase users kingroup. 

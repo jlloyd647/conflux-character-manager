@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { getAllBloodlines } from '../services/bloodlineService'
+import { getAllKingroups } from '../services/kingroupService'
 import { getAllSkills } from '../services/skillService'
 
 /**
  * @typedef {import('../services/skillService').Skill} Skill
  * @typedef {import('../services/bloodlineService').Bloodline} Bloodline
+ * @typedef {import('../services/kingroupService').Kingroup} Kingroup
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -14,6 +16,9 @@ export const useReferenceDataStore = create((set, get) => ({
   bloodlines: [],
   bloodlinesLoading: false,
   bloodlinesError: null,
+  kingroups: [],
+  kingroupsLoading: false,
+  kingroupsError: null,
 
   loadSkills: async () => {
     set({ skillsLoading: true, skillsError: null })
@@ -97,4 +102,50 @@ export const useReferenceDataStore = create((set, get) => ({
 
   clearBloodlines: () =>
     set({ bloodlines: [], bloodlinesLoading: false, bloodlinesError: null }),
+
+  loadKingroups: async () => {
+    set({ kingroupsLoading: true, kingroupsError: null })
+
+    try {
+      const kingroups = await getAllKingroups()
+      set({ kingroups, kingroupsLoading: false })
+      return kingroups
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load kingroups'
+      set({ kingroupsError: message, kingroupsLoading: false })
+      throw error
+    }
+  },
+
+  setKingroups: (kingroups) => set({ kingroups }),
+
+  upsertKingroup: (kingroup) =>
+    set((state) => {
+      const index = state.kingroups.findIndex(
+        (entry) => entry.kingroupID === kingroup.kingroupID,
+      )
+
+      if (index >= 0) {
+        const kingroups = [...state.kingroups]
+        kingroups[index] = kingroup
+        return { kingroups }
+      }
+
+      return {
+        kingroups: [...state.kingroups, kingroup].sort(
+          (left, right) => left.kingroupID - right.kingroupID,
+        ),
+      }
+    }),
+
+  getKingroupByKingroupID: (kingroupID) =>
+    get().kingroups.find((kingroup) => kingroup.kingroupID === Number(kingroupID)) ??
+    null,
+
+  getKingroupsByBloodlineID: (bloodlineID) =>
+    get().kingroups.filter((kingroup) => kingroup.bloodlineID === Number(bloodlineID)),
+
+  clearKingroups: () =>
+    set({ kingroups: [], kingroupsLoading: false, kingroupsError: null }),
 }))
