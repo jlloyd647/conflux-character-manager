@@ -6,6 +6,7 @@ import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
 import { getAllSkills } from '../services/skillService'
 import { getAllStatProgressions } from '../services/statProgressionService'
+import { getAllStats } from '../services/statDefinitionService'
 
 /**
  * @typedef {import('../services/skillService').Skill} Skill
@@ -15,6 +16,7 @@ import { getAllStatProgressions } from '../services/statProgressionService'
  * @typedef {import('../services/giftService').Gift} Gift
  * @typedef {import('../services/curseService').Curse} Curse
  * @typedef {import('../services/statProgressionService').StatProgression} StatProgression
+ * @typedef {import('../services/statDefinitionService').Stat} Stat
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -39,6 +41,9 @@ export const useReferenceDataStore = create((set, get) => ({
   statProgressions: [],
   statProgressionsLoading: false,
   statProgressionsError: null,
+  stats: [],
+  statsLoading: false,
+  statsError: null,
 
   loadSkills: async () => {
     set({ skillsLoading: true, skillsError: null })
@@ -338,4 +343,25 @@ export const useReferenceDataStore = create((set, get) => ({
       statProgressionsLoading: false,
       statProgressionsError: null,
     }),
+
+  loadStats: async () => {
+    set({ statsLoading: true, statsError: null })
+
+    try {
+      const stats = await getAllStats()
+      set({ stats, statsLoading: false })
+      return stats
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load stats'
+      set({ statsError: message, statsLoading: false })
+      throw error
+    }
+  },
+
+  setStats: (stats) => set({ stats }),
+
+  getStatByStatID: (statID) =>
+    get().stats.find((stat) => stat.statID === Number(statID)) ?? null,
+
+  clearStats: () => set({ stats: [], statsLoading: false, statsError: null }),
 }))

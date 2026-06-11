@@ -7,16 +7,29 @@ import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
 import {
   addCharacterSkills,
+  applyCharacterXpSpentDelta,
+  changeCharacterBloodline,
   createCharacter,
   getCharacterById,
   getCharacterSkills,
   getCharacterStats,
+  removeCharacterSkill,
   toPageStatValues,
   updateCharacterColumnById,
-  updateCharacterStatsById,
+  updateCharacterStatsAndXpSpent,
 } from '../services/characterService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
+import {
+  calculateDisplayedPageStats,
+  createEmptyBucketValues,
+} from '../utils/characterStatBuckets'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
+import {
+  calculateCharacterStatsXpCostChange,
+  formatStatXpCostDelta,
+  getCharacterStatDecreaseStep,
+  getCharacterStatIncreaseStep,
+} from '../utils/statProgression'
 
 const EMPTY_CHARACTER = {
   characterName: '',
@@ -137,6 +150,7 @@ export default function AdminCharacterEditPage() {
     error: '',
   })
   const [showSkillPicker, setShowSkillPicker] = useState(false)
+  const [showSkillRemover, setShowSkillRemover] = useState(false)
   const allSkills = useReferenceDataStore((state) => state.skills)
   const allSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
   const loadSkills = useReferenceDataStore((state) => state.loadSkills)
@@ -155,10 +169,16 @@ export default function AdminCharacterEditPage() {
   const cursesLoading = useReferenceDataStore((state) => state.cursesLoading)
   const loadCurses = useReferenceDataStore((state) => state.loadCurses)
   const [addingSkill, setAddingSkill] = useState(false)
+  const [removingSkill, setRemovingSkill] = useState(false)
   const [statsEditing, setStatsEditing] = useState(false)
+  const [statsEditBase, setStatsEditBase] = useState(EMPTY_STATS)
   const [draftStats, setDraftStats] = useState(EMPTY_STATS)
   const [savingStats, setSavingStats] = useState(false)
   const [statsError, setStatsError] = useState('')
+  const statProgressions = useReferenceDataStore((state) => state.statProgressions)
+  const stats = useReferenceDataStore((state) => state.stats)
+  const loadStatProgressions = useReferenceDataStore((state) => state.loadStatProgressions)
+  const loadStats = useReferenceDataStore((state) => state.loadStats)
 
   useEffect(() => {
     if (authLoading || isCreateMode) {
@@ -322,6 +342,10 @@ export default function AdminCharacterEditPage() {
       giftsLoading,
       curses,
       cursesLoading,
+      statProgressions,
+      statProgressionsLoading,
+      stats,
+      statsLoading,
     } = useReferenceDataStore.getState()
 
     if (!bloodlines.length && !bloodlinesLoading) {
@@ -343,7 +367,24 @@ export default function AdminCharacterEditPage() {
     if (!curses.length && !cursesLoading) {
       loadCurses().catch(() => {})
     }
-  }, [authLoading, loadBloodlines, loadKingroups, loadBanes, loadGifts, loadCurses])
+
+    if (!statProgressions.length && !statProgressionsLoading) {
+      loadStatProgressions().catch(() => {})
+    }
+
+    if (!stats.length && !statsLoading) {
+      loadStats().catch(() => {})
+    }
+  }, [
+    authLoading,
+    loadBloodlines,
+    loadKingroups,
+    loadBanes,
+    loadGifts,
+    loadCurses,
+    loadStatProgressions,
+    loadStats,
+  ])
 
   useEffect(() => {
     if (authLoading || !showSkillPicker || allSkills.length || allSkillsLoading) {
@@ -376,10 +417,17 @@ export default function AdminCharacterEditPage() {
     setSkillsError('')
 
     try {
-      const addedSkill = await addCharacterSkills(character.characterId, skillId)
+      const { characterSkill, characterStats: updatedCharacterStats } =
+        await addCharacterSkills(character.characterId, skillId)
+      setCharacterStatsState((previous) => ({
+        ...previous,
+        characterId: character.characterId,
+        stats: updatedCharacterStats,
+        error: '',
+      }))
       setCharacterSkillsState((previous) => ({
         ...previous,
-        skills: [...previous.skills, addedSkill],
+        skills: [...previous.skills, characterSkill],
         error: '',
       }))
       setShowSkillPicker(false)
@@ -387,6 +435,49 @@ export default function AdminCharacterEditPage() {
       setSkillsError(addError.message)
     } finally {
       setAddingSkill(false)
+    }
+  }
+
+  async function handleRemoveSkill(skill) {
+    if (!character?.characterId || removingSkill) {
+      return
+    }
+
+    const skillId = Number(skill.skillId)
+
+    if (Number.isNaN(skillId)) {
+      setSkillsError('Invalid skill id')
+      return
+    }
+
+    setRemovingSkill(true)
+    setSkillsError('')
+
+    try {
+      const updatedCharacterStats = await removeCharacterSkill(character.characterId, skillId)
+      setCharacterStatsState((previous) => ({
+        ...previous,
+        characterId: character.characterId,
+        stats: updatedCharacterStats,
+        error: '',
+      }))
+      setCharacterSkillsState((previous) => {
+        const skills = previous.skills.filter((entry) => entry.skillId !== skillId)
+
+        if (skills.length === 0) {
+          setShowSkillRemover(false)
+        }
+
+        return {
+          ...previous,
+          skills,
+          error: '',
+        }
+      })
+    } catch (removeError) {
+      setSkillsError(removeError.message)
+    } finally {
+      setRemovingSkill(false)
     }
   }
 
@@ -416,6 +507,40 @@ export default function AdminCharacterEditPage() {
     }
   }
 
+  async function handleBloodlineChange(nextValue) {
+    const bloodlineId = parseIntegerField(nextValue, 'Bloodline')
+
+    if (isCreateMode) {
+      setDraftCharacter((previous) => ({
+        ...previous,
+        bloodlineId,
+        kingroupId: '',
+      }))
+      return
+    }
+
+    if (!character?.id) {
+      throw new Error('Character not found')
+    }
+
+    const { character: updatedCharacter, characterStats } = await changeCharacterBloodline(
+      character.id,
+      bloodlineId,
+    )
+
+    setCharacter(updatedCharacter)
+    setCharacterStatsState((previous) => ({
+      ...previous,
+      characterId: updatedCharacter.characterId,
+      stats: characterStats,
+      error: '',
+    }))
+    setStatsEditing(false)
+    setStatsEditBase(EMPTY_STATS)
+    setDraftStats(EMPTY_STATS)
+    setStatsError('')
+  }
+
   async function handleCreate() {
     setCreating(true)
     setError('')
@@ -434,7 +559,7 @@ export default function AdminCharacterEditPage() {
 
       const bloodlineId = parseIntegerField(draftCharacter.bloodlineId, 'Bloodline ID')
       const bloodline = bloodlines.find((entry) => entry.bloodlineID === bloodlineId) ?? null
-      const stats = resolveCharacterStats(
+      const characterStatValues = resolveCharacterStats(
         draftCharacter,
         bloodline,
         statsEditing ? draftStats : null,
@@ -445,9 +570,20 @@ export default function AdminCharacterEditPage() {
         playerId,
         bloodlineId: parseIntegerField(draftCharacter.bloodlineId, 'Bloodline ID'),
         kingroupId: parseOptionalIntegerField(draftCharacter.kingroupId, 'Kin Group'),
-        xp: parseIntegerField(draftCharacter.xp, 'XP'),
-        stats,
+        xp: parseIntegerField(draftCharacter.xp, 'Total XP'),
+        stats: characterStatValues,
       })
+      const baseStats = resolveCharacterStats({}, bloodline, null)
+      const statXpCost = calculateCharacterStatsXpCostChange(
+        baseStats,
+        characterStatValues,
+        statProgressions,
+        stats,
+      )
+
+      if (statXpCost !== 0) {
+        await applyCharacterXpSpentDelta(createdCharacter.characterId, statXpCost)
+      }
 
       navigate(`/admin/characters/${createdCharacter.id}/edit`, { replace: true })
     } catch (createError) {
@@ -504,8 +640,28 @@ export default function AdminCharacterEditPage() {
       return draftCharacter
     }
 
-    return toPageStatValues(characterStats) ?? {}
-  }, [isCreateMode, draftCharacter, characterStats])
+    if (!characterStats) {
+      return {}
+    }
+
+    if (!activeBloodline) {
+      return toPageStatValues(characterStats) ?? {}
+    }
+
+    return calculateDisplayedPageStats(
+      characterStats.buckets ?? createEmptyBucketValues(),
+      activeBloodline,
+      statProgressions,
+      stats,
+    )
+  }, [
+    isCreateMode,
+    draftCharacter,
+    characterStats,
+    activeBloodline,
+    statProgressions,
+    stats,
+  ])
 
   const currentStats = useMemo(
     () =>
@@ -517,13 +673,32 @@ export default function AdminCharacterEditPage() {
     [pageStatSource, activeBloodline, statsEditing, draftStats],
   )
 
+  const statsXpCostDelta = useMemo(() => {
+    if (!statsEditing) {
+      return 0
+    }
+
+    try {
+      return calculateCharacterStatsXpCostChange(
+        statsEditBase,
+        draftStats,
+        statProgressions,
+        stats,
+      )
+    } catch {
+      return 0
+    }
+  }, [statsEditing, statsEditBase, draftStats, statProgressions, stats])
+
   function startStatsEditing() {
+    setStatsEditBase(currentStats)
     setDraftStats(currentStats)
     setStatsError('')
     setStatsEditing(true)
   }
 
   function cancelStatsEditing() {
+    setStatsEditBase(EMPTY_STATS)
     setDraftStats(EMPTY_STATS)
     setStatsError('')
     setStatsEditing(false)
@@ -547,6 +722,7 @@ export default function AdminCharacterEditPage() {
           ...draftStats,
         }))
         setStatsEditing(false)
+        setStatsEditBase(EMPTY_STATS)
         setDraftStats(EMPTY_STATS)
         return
       }
@@ -555,16 +731,27 @@ export default function AdminCharacterEditPage() {
         throw new Error('Character not found')
       }
 
-      const updatedStats = await updateCharacterStatsById(
-        character.characterId,
+      const xpDelta = calculateCharacterStatsXpCostChange(
+        statsEditBase,
         draftStats,
+        statProgressions,
+        stats,
       )
+      const { updatedStats } = await updateCharacterStatsAndXpSpent(
+          character.characterId,
+          draftStats,
+          xpDelta,
+          statsEditBase,
+          { statProgressions, stats },
+        )
+
       setCharacterStatsState({
         characterId: character.characterId,
         stats: updatedStats,
         error: '',
       })
       setStatsEditing(false)
+      setStatsEditBase(EMPTY_STATS)
       setDraftStats(EMPTY_STATS)
     } catch (saveError) {
       setStatsError(saveError.message)
@@ -670,12 +857,20 @@ export default function AdminCharacterEditPage() {
             <div className="dashboard-profile-grid">
               <div className="dashboard-profile-field">
                 <EditableField
-                  label="XP"
+                  label="Total XP"
                   value={formatFieldValue(activeCharacter?.xp)}
                   inputType="number"
                   onSave={updateCharacterField('xp', (value) =>
-                    parseIntegerField(value, 'XP'),
+                    parseIntegerField(value, 'Total XP'),
                   )}
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <EditableField
+                  label="Spent XP"
+                  value={formatFieldValue(characterStats?.statXPSpent ?? 0)}
+                  inputType="number"
+                  disabled
                 />
               </div>
               <div className="dashboard-profile-field">
@@ -685,9 +880,7 @@ export default function AdminCharacterEditPage() {
                   options={bloodlineOptions}
                   placeholder="Select bloodline"
                   editLabel="Edit bloodline"
-                  onSave={updateCharacterField('bloodlineId', (value) =>
-                    parseIntegerField(value, 'Bloodline'),
-                  )}
+                  onSave={handleBloodlineChange}
                 />
               </div>
               <div className="dashboard-profile-field">
@@ -720,6 +913,9 @@ export default function AdminCharacterEditPage() {
             <h2 className="dashboard-section-title">Character Stats</h2>
             {statsEditing ? (
               <div className="character-skills-header-actions">
+                <span className="character-stats-xp-cost" role="status">
+                  Stat XP cost: {formatStatXpCostDelta(statsXpCostDelta)}
+                </span>
                 <button
                   type="button"
                   className="dashboard-action-link character-skills-action"
@@ -774,10 +970,37 @@ export default function AdminCharacterEditPage() {
                       min={activeBloodline?.[stat.minKey] ?? undefined}
                       max={activeBloodline?.[stat.maxKey] ?? undefined}
                       isEditing={statsEditing}
+                      onIncrease={(currentValue) =>
+                        currentValue +
+                        getCharacterStatIncreaseStep(
+                          stat.key,
+                          currentValue,
+                          statProgressions,
+                          stats,
+                        )
+                      }
+                      onDecrease={(currentValue) =>
+                        currentValue -
+                        getCharacterStatDecreaseStep(
+                          stat.key,
+                          currentValue,
+                          statProgressions,
+                          stats,
+                          activeBloodline?.[stat.minKey] ?? 0,
+                        )
+                      }
                       onChange={(value) => updateDraftStat(stat.key, value)}
                     />
                   </div>
                 ))}
+                <div className="dashboard-profile-field">
+                  <EditableField
+                    label="Stat XP Spent"
+                    value={formatFieldValue(characterStats?.statXPSpent ?? 0)}
+                    inputType="number"
+                    disabled
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -788,24 +1011,44 @@ export default function AdminCharacterEditPage() {
         <section className="dashboard-section">
           <div className="character-skills-header">
             <h2 className="dashboard-section-title">Skills</h2>
-            {showSkillPicker ? (
-              <button
-                type="button"
-                className="dashboard-action-link character-skills-action"
-                disabled={addingSkill}
-                onClick={() => setShowSkillPicker(false)}
-              >
-                Cancel
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="dashboard-action-link character-skills-action"
-                onClick={() => setShowSkillPicker(true)}
-              >
-                Add Skill
-              </button>
-            )}
+            <div className="character-skills-header-actions">
+              {showSkillPicker || showSkillRemover ? (
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={addingSkill || removingSkill}
+                  onClick={() => {
+                    setShowSkillPicker(false)
+                    setShowSkillRemover(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    onClick={() => {
+                      setShowSkillRemover(false)
+                      setShowSkillPicker(true)
+                    }}
+                  >
+                    Add Skill
+                  </button>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    onClick={() => {
+                      setShowSkillPicker(false)
+                      setShowSkillRemover(true)
+                    }}
+                  >
+                    Remove Skill
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="dashboard-card character-skills-card">
             {skillsError ? (
@@ -826,6 +1069,37 @@ export default function AdminCharacterEditPage() {
                   emptyMessage="No skills found."
                   onRowClick={handleAddSkill}
                 />
+              )
+            ) : showSkillRemover ? (
+              removingSkill ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Removing skill…
+                </p>
+              ) : skillsLoading ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Loading skills…
+                </p>
+              ) : characterSkills.length ? (
+                <div className="character-skills-list">
+                  <ul className="character-skills-items">
+                    {characterSkills.map((skill) => (
+                      <li key={`${skill.characterId}-${skill.skillId}`}>
+                        <button
+                          type="button"
+                          className="character-skills-item character-skills-item-button"
+                          disabled={removingSkill}
+                          onClick={() => handleRemoveSkill(skill)}
+                        >
+                          {getSkillDisplayName(skill.skillId)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="character-skills-empty character-skills-status">
+                  No skills to remove.
+                </p>
               )
             ) : skillsLoading ? (
               <p className="list-page-loading character-skills-status" role="status">

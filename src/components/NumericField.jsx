@@ -43,6 +43,8 @@ export default function NumericField({
   value,
   draftValue,
   onChange,
+  onDecrease,
+  onIncrease,
   label,
   min,
   max,
@@ -69,26 +71,68 @@ export default function NumericField({
     ? (draftValue !== undefined ? draftValue : value)
     : value
   const activeNumber = toNumber(activeValue)
+  const currentForAdjust = activeNumber ?? toNumber(min) ?? 0
   const canAdjust = isEditing && !disabled && onChange
   const canDecrease =
     canAdjust &&
-    activeNumber !== null &&
-    (min === undefined || min === null || activeNumber > min)
+    (onDecrease || activeNumber !== null) &&
+    (min === undefined || min === null || currentForAdjust > min)
   const canIncrease =
     canAdjust &&
-    activeNumber !== null &&
-    (max === undefined || max === null || activeNumber < max)
+    (onIncrease || activeNumber !== null) &&
+    (max === undefined || max === null || currentForAdjust < max)
 
-  function adjustValue(direction) {
-    if (!canAdjust || activeNumber === null) {
-      return
+  function resolveNextValue(direction) {
+    if (!canAdjust) {
+      return null
     }
 
-    const nextValue = clampValue(
-      activeNumber + direction * step,
+    const customHandler = direction < 0 ? onDecrease : onIncrease
+
+    if (customHandler) {
+      const result = customHandler(currentForAdjust)
+
+      if (!Number.isFinite(result)) {
+        return null
+      }
+
+      return clampValue(result, min, max)
+    }
+
+    if (activeNumber === null) {
+      return null
+    }
+
+    const adjustment = Number(step)
+
+    if (!Number.isFinite(adjustment) || adjustment <= 0) {
+      return null
+    }
+
+    return clampValue(
+      activeNumber + direction * adjustment,
       min,
       max,
     )
+  }
+
+  function handleDecrease() {
+    const nextValue = resolveNextValue(-1)
+
+    if (nextValue === null) {
+      return
+    }
+
+    onChange(nextValue)
+  }
+
+  function handleIncrease() {
+    const nextValue = resolveNextValue(1)
+
+    if (nextValue === null) {
+      return
+    }
+
     onChange(nextValue)
   }
 
@@ -111,7 +155,7 @@ export default function NumericField({
             aria-label={`${decreaseLabel} ${label ?? shownValue}`}
             title={decreaseLabel}
             disabled={!canDecrease}
-            onClick={() => adjustValue(-1)}
+            onClick={handleDecrease}
           >
             <MinusIcon {...iconProps} />
           </button>
@@ -131,7 +175,7 @@ export default function NumericField({
             aria-label={`${increaseLabel} ${label ?? shownValue}`}
             title={increaseLabel}
             disabled={!canIncrease}
-            onClick={() => adjustValue(1)}
+            onClick={handleIncrease}
           >
             <PlusIcon {...iconProps} />
           </button>

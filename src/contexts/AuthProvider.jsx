@@ -43,6 +43,7 @@ export function AuthProvider({ children }) {
         referenceStore.loadGifts().catch(() => {})
         referenceStore.loadCurses().catch(() => {})
         referenceStore.loadStatProgressions().catch(() => {})
+        referenceStore.loadStats().catch(() => {})
       } else {
         const referenceStore = useReferenceDataStore.getState()
         referenceStore.clearSkills()
@@ -52,6 +53,7 @@ export function AuthProvider({ children }) {
         referenceStore.clearGifts()
         referenceStore.clearCurses()
         referenceStore.clearStatProgressions()
+        referenceStore.clearStats()
       }
     }
 

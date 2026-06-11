@@ -17,4 +17,8 @@ There will be a label above, a text field below. When in edit mode, a - button w
 - Numbers will have a minimum and maximum value, greying out the + and - buttons if that value is reached
 - an external confirm button will send all grouped value changes to update the database accordingly.
 
+## Feature Updates
+
+1 - [x] Update the + and - buttons to handle custom functions as well. If no function is defined, have it increase or decrease the number within.
+
 ## Notes

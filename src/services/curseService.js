@@ -39,35 +39,14 @@ export async function getAllCurses() {
     throw new Error('Not authenticated')
   }
 
-  console.log('[curseService] getAllCurses request:', {
-    table: 'curses',
-    select: CURSE_COLUMNS,
-    order: { column: 'curse_id', ascending: true },
-    userId: user.id,
-  })
-
   const { data, error } = await supabase
     .from('curses')
     .select(CURSE_COLUMNS)
     .order('curse_id', { ascending: true })
 
-  console.log('[curseService] getAllCurses response:', {
-    data,
-    error,
-    count: data?.length ?? 0,
-  })
-
   if (error) {
-    console.error('[curseService] getAllCurses failed:', { error })
     throw new Error(error.message)
   }
 
-  const curses = (data ?? []).map(mapCurseRow).filter(Boolean)
-
-  console.log('[curseService] getAllCurses mapped:', {
-    count: curses.length,
-    curses,
-  })
-
-  return curses
+  return (data ?? []).map(mapCurseRow).filter(Boolean)
 }

@@ -1,3 +1,12 @@
+import {
+  bucketValuesToAggregateFields,
+  bucketValuesToDbPayload,
+  createEmptyBucketValues,
+  getCharacterStatColumnNames,
+  mapRowToBucketValues,
+  pageStatsToBucketPayload,
+  pageStatsToInitialBucketPayload,
+} from '../utils/characterStatBuckets'
 import { supabase } from './supabaseClient'
 
 const CHARACTER_COLUMNS = [
@@ -22,18 +31,9 @@ const CHARACTER_FIELD_TO_COLUMN = {
 
 const CHARACTER_STAT_COLUMNS = [
   'character_id',
-  'vitality',
-  'mind',
-  'strength',
-  'willpower',
+  'xp_spent',
+  ...getCharacterStatColumnNames(),
 ].join(', ')
-
-const PAGE_STAT_TO_DB = {
-  vitality: 'vitality',
-  mind: 'mind',
-  strength: 'strength',
-  willpower: 'willpower',
-}
 
 const UPDATABLE_CHARACTER_COLUMNS = new Set(
   Object.values(CHARACTER_FIELD_TO_COLUMN).filter(
@@ -64,10 +64,12 @@ const CHARACTER_SKILL_COLUMNS = [
 /**
  * @typedef {{
  *   characterID: number,
+ *   buckets: Record<string, number[]>,
  *   characterVitality: number | null,
  *   characterMind: number | null,
  *   characterStrength: number | null,
  *   characterWillpower: number | null,
+ *   statXPSpent: number,
  * }} CharacterStats
  */
 
@@ -79,17 +81,6 @@ const CHARACTER_SKILL_COLUMNS = [
  *   createdAt: string,
  * }} CharacterSkill
  */
-
-/** @param {unknown} value */
-function mapNumericField(value) {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-
-  const parsed = Number(value)
-
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 /** @param {Record<string, unknown> | null} row */
 function mapCharacterRow(row) {
@@ -115,12 +106,17 @@ function mapCharacterStatsRow(row) {
     return null
   }
 
+  const buckets = mapRowToBucketValues(row)
+  const aggregates = bucketValuesToAggregateFields(buckets)
+
   return {
     characterID: row.character_id ?? 0,
-    characterVitality: mapNumericField(row.vitality),
-    characterMind: mapNumericField(row.mind),
-    characterStrength: mapNumericField(row.strength),
-    characterWillpower: mapNumericField(row.willpower),
+    buckets,
+    characterVitality: aggregates.characterVitality,
+    characterMind: aggregates.characterMind,
+    characterStrength: aggregates.characterStrength,
+    characterWillpower: aggregates.characterWillpower,
+    statXPSpent: Number(row.xp_spent ?? 0),
   }
 }
 
@@ -144,16 +140,39 @@ export function toPageStatValues(stats) {
  *   strength: number | null,
  *   willpower: number | null,
  * }>} stats */
-function buildCharacterStatsPayload(stats) {
-  const payload = {}
+function buildCharacterStatsCreatePayload(stats) {
+  return pageStatsToInitialBucketPayload(stats)
+}
 
-  for (const [pageKey, dbKey] of Object.entries(PAGE_STAT_TO_DB)) {
-    if (stats[pageKey] !== undefined) {
-      payload[dbKey] = stats[pageKey]
-    }
-  }
+/**
+ * @param {Partial<{
+ *   vitality: number | null,
+ *   mind: number | null,
+ *   strength: number | null,
+ *   willpower: number | null,
+ * }>} stats
+ * @param {CharacterStats | null | undefined} existingStats
+ * @param {Partial<Record<string, number | null | undefined>>} basePageStats
+ * @param {{
+ *   statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *   stats?: import('../services/statDefinitionService').Stat[],
+ * }} [referenceData]
+ */
+function buildCharacterStatsUpdatePayload(
+  stats,
+  existingStats,
+  basePageStats,
+  referenceData = {},
+) {
+  const existingBuckets = existingStats?.buckets ?? mapRowToBucketValues(null)
 
-  return payload
+  return pageStatsToBucketPayload(
+    existingBuckets,
+    basePageStats,
+    stats,
+    referenceData.statProgressions ?? [],
+    referenceData.stats ?? [],
+  )
 }
 
 function parseNumericCharacterId(characterId) {
@@ -164,6 +183,91 @@ function parseNumericCharacterId(characterId) {
   }
 
   return numericCharacterId
+}
+
+/**
+ * @param {string | number} skillId Numeric skill business id (`skills.skill_id`)
+ * @returns {Promise<number>}
+ */
+async function getSkillXpCost(skillId) {
+  const numericSkillId = Number(skillId)
+
+  if (Number.isNaN(numericSkillId)) {
+    throw new Error('Invalid skill id')
+  }
+
+  const { data, error } = await supabase
+    .from('skills')
+    .select('cost_xp')
+    .eq('skill_id', numericSkillId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Skill not found')
+  }
+
+  const xpCost = Number(data.cost_xp ?? 0)
+
+  return Number.isNaN(xpCost) ? 0 : xpCost
+}
+
+/**
+ * @param {number} characterId Numeric character business id (`characters.character_id`)
+ * @param {number} delta Amount to add to `xp_spent` (negative to subtract)
+ * @returns {Promise<CharacterStats>}
+ */
+async function adjustCharacterXpSpent(characterId, delta) {
+  const numericCharacterId = parseNumericCharacterId(characterId)
+  const existingStats = await getCharacterStats(characterId)
+  const currentXpSpent = existingStats?.statXPSpent ?? 0
+  const newXpSpent = Math.max(0, currentXpSpent + delta)
+
+  if (!existingStats) {
+    const { data, error } = await supabase
+      .from('character_stats')
+      .insert({
+        character_id: numericCharacterId,
+        xp_spent: newXpSpent,
+        ...bucketValuesToDbPayload(createEmptyBucketValues()),
+      })
+      .select(CHARACTER_STAT_COLUMNS)
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const characterStats = mapCharacterStatsRow(data)
+
+    if (!characterStats) {
+      throw new Error('Character stats not found')
+    }
+
+    return characterStats
+  }
+
+  const { data, error } = await supabase
+    .from('character_stats')
+    .update({ xp_spent: newXpSpent })
+    .eq('character_id', numericCharacterId)
+    .select(CHARACTER_STAT_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const characterStats = mapCharacterStatsRow(data)
+
+  if (!characterStats) {
+    throw new Error('Character stats not found')
+  }
+
+  return characterStats
 }
 
 /** @param {Record<string, unknown> | null} row */
@@ -327,7 +431,7 @@ export async function createCharacter({
     throw new Error('Character not found')
   }
 
-  if (stats && Object.keys(buildCharacterStatsPayload(stats)).length) {
+  if (stats && Object.keys(buildCharacterStatsCreatePayload(stats)).length) {
     await createCharacterStats(character.characterId, stats)
   }
 
@@ -378,6 +482,61 @@ export async function updateCharacterColumnById(characterId, column, value) {
   }
 
   return character
+}
+
+/**
+ * @param {string} characterId Character record id (`characters.id`)
+ * @param {number} bloodlineId New bloodline id (`characters.bloodline_id`)
+ * @returns {Promise<{ character: Character, characterStats: CharacterStats | null }>}
+ */
+export async function changeCharacterBloodline(characterId, bloodlineId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const { data, error } = await supabase
+    .from('characters')
+    .update({
+      bloodline_id: bloodlineId,
+      kingroup_id: null,
+    })
+    .eq('id', characterId)
+    .select(CHARACTER_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const character = mapCharacterRow(data)
+
+  if (!character) {
+    throw new Error('Character not found')
+  }
+
+  const { error: resetError } = await supabase.rpc(
+    'reset_character_stats_for_bloodline_change',
+    {
+      p_character_id: parseNumericCharacterId(character.characterId),
+    },
+  )
+
+  if (resetError) {
+    throw new Error(resetError.message)
+  }
+
+  const characterStats = await getCharacterStats(character.characterId)
+
+  return { character, characterStats }
 }
 
 /**
@@ -438,7 +597,7 @@ export async function createCharacterStats(characterId, stats) {
   }
 
   const numericCharacterId = parseNumericCharacterId(characterId)
-  const payload = buildCharacterStatsPayload(stats)
+  const payload = buildCharacterStatsCreatePayload(stats)
 
   if (!Object.keys(payload).length) {
     throw new Error('No stats provided to create.')
@@ -448,6 +607,7 @@ export async function createCharacterStats(characterId, stats) {
     .from('character_stats')
     .insert({
       character_id: numericCharacterId,
+      xp_spent: 0,
       ...payload,
     })
     .select(CHARACTER_STAT_COLUMNS)
@@ -474,9 +634,20 @@ export async function createCharacterStats(characterId, stats) {
  *   strength: number | null,
  *   willpower: number | null,
  * }>} stats
+ * @param {Partial<Record<string, number | null | undefined>>} [basePageStats]
+ * @param {{
+ *   statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *   stats?: import('../services/statDefinitionService').Stat[],
+ * }} [referenceData]
  * @returns {Promise<CharacterStats>}
  */
-export async function updateCharacterStatsById(characterId, stats) {
+export async function updateCharacterStatsById(
+  characterId,
+  stats,
+  basePageStats = {},
+  referenceData = {},
+  xpDelta = 0,
+) {
   const {
     data: { user },
     error: authError,
@@ -491,10 +662,20 @@ export async function updateCharacterStatsById(characterId, stats) {
   }
 
   const numericCharacterId = parseNumericCharacterId(characterId)
-  const payload = buildCharacterStatsPayload(stats)
+  const existingStats = await getCharacterStats(characterId)
+  const payload = buildCharacterStatsUpdatePayload(
+    stats,
+    existingStats,
+    basePageStats,
+    referenceData,
+  )
 
-  if (!Object.keys(payload).length) {
+  if (!Object.keys(payload).length && xpDelta === 0) {
     throw new Error('No stats provided to update.')
+  }
+
+  if (xpDelta !== 0) {
+    payload.xp_spent = Math.max(0, (existingStats?.statXPSpent ?? 0) + xpDelta)
   }
 
   const { data, error } = await supabase
@@ -515,6 +696,49 @@ export async function updateCharacterStatsById(characterId, stats) {
   }
 
   return characterStats
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {Partial<{
+ *   vitality: number | null,
+ *   mind: number | null,
+ *   strength: number | null,
+ *   willpower: number | null,
+ * }>} stats
+ * @param {number} xpDelta Amount to add to `xp_spent` (negative to subtract)
+ * @param {Partial<Record<string, number | null | undefined>>} [basePageStats]
+ * @param {{
+ *   statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *   stats?: import('../services/statDefinitionService').Stat[],
+ * }} [referenceData]
+ * @returns {Promise<{ updatedStats: CharacterStats }>}
+ */
+export async function updateCharacterStatsAndXpSpent(
+  characterId,
+  stats,
+  xpDelta,
+  basePageStats = {},
+  referenceData = {},
+) {
+  const updatedStats = await updateCharacterStatsById(
+    characterId,
+    stats,
+    basePageStats,
+    referenceData,
+    xpDelta,
+  )
+
+  return { updatedStats }
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {number} delta Amount to add to `xp_spent` (negative to subtract)
+ * @returns {Promise<CharacterStats>}
+ */
+export async function applyCharacterXpSpentDelta(characterId, delta) {
+  return adjustCharacterXpSpent(characterId, delta)
 }
 
 /**
@@ -557,7 +781,7 @@ export async function getCharacterSkills(characterId) {
 /**
  * @param {string | number} characterId Numeric character business id (`characters.character_id`)
  * @param {string | number} skillId Numeric skill business id (`skills.skill_id`)
- * @returns {Promise<CharacterSkill>}
+ * @returns {Promise<{ characterSkill: CharacterSkill, characterStats: CharacterStats }>}
  */
 export async function addCharacterSkills(characterId, skillId) {
   const {
@@ -603,5 +827,53 @@ export async function addCharacterSkills(characterId, skillId) {
     throw new Error('Character skill not found')
   }
 
-  return characterSkill
+  const xpCost = await getSkillXpCost(numericSkillId)
+  const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost)
+
+  return { characterSkill, characterStats }
+}
+
+/**
+ * @param {string | number} characterId Numeric character business id (`characters.character_id`)
+ * @param {string | number} skillId Numeric skill business id (`skills.skill_id`)
+ * @returns {Promise<CharacterStats>}
+ */
+export async function removeCharacterSkill(characterId, skillId) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const numericCharacterId = Number(characterId)
+  const numericSkillId = Number(skillId)
+
+  if (Number.isNaN(numericCharacterId)) {
+    throw new Error('Invalid character id')
+  }
+
+  if (Number.isNaN(numericSkillId)) {
+    throw new Error('Invalid skill id')
+  }
+
+  const xpCost = await getSkillXpCost(numericSkillId)
+
+  const { error } = await supabase
+    .from('character-skill')
+    .delete()
+    .eq('character_id', numericCharacterId)
+    .eq('skill_id', numericSkillId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return adjustCharacterXpSpent(numericCharacterId, -xpCost)
 }

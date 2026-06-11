@@ -575,6 +575,12 @@ code {
   margin-left: auto;
 }
 
+.character-stats-xp-cost {
+  color: var(--text);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
 .character-skills-action {
   border: none;
   cursor: pointer;
@@ -620,6 +626,24 @@ code {
   font-size: 0.875rem;
   text-align: center;
   word-break: break-word;
+}
+
+.character-skills-item-button {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.character-skills-item-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.character-skills-item-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .character-skills-empty {

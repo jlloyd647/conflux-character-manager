@@ -24,4 +24,14 @@ This will be displayed in a form view and use the editableField component to dis
 12 - [x] Remove the characterID as an editable field and put it to the left of the player name, sperated by a |
 13 - [x] Remove the playerID as an editable field and put it to the right of the player name, seperated by a -
 14 - [x] Add a bit more space between the CharacterID, Name, and playerID. About 15px.
+15 - [x] Add a remove skills button next to the add skills button that displays a list of skills the character has, if a skill is clicked that skill is removed from the character-skill list in the database.
+16 - [x] When a user adds or removes a skill, we will need to update the xp_spent field in the database to match the xp_cost of that skill.
+17 - [x] Update XP editable field title to "Total XP", add a new editableField that is not editable to show "Spent XP"
+18 - [x] Increasing or decreasing a stat should go up in incriments equal to the progressionIncAmount, not just 1. This is based on the current value of the stat and where it falls in the stat-progression for the same stat id.
+        Example: If Vitality is currently 20, that is less then the max_value, there fore it should increase by 5, the progressionIncAmount. But if it was 40, then it should only increase by 2, the progressionIncAmount for that stat range, because it fell between 31-50
+19 - [x] Changing character stats will incur an XP cost based on the stat-progression in reference data. We need to keep a running total of xp spent while increase or decreasing the stats here, then when the confirm button is hit, we need to update the xp_spent in the database.
+20 - [x] Adjust the threshold for increasing and decreasing by ammount to be <max rather than <=max
+21 - [x] Adjust the threshold for increasing and decreasing by amount to be <=max rather than <max
+22 - [x] For Vitality, Mind, Strength, and Willpower, we should be displaying the blood minimums plus the rank calculation from the stat-calulation utils.
+
 ## Bug Fixes

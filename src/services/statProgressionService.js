@@ -62,7 +62,7 @@ export async function getAllStatProgressions() {
   }
 
   const { data, error } = await supabase
-    .from('stat_progressions')
+    .from('stat_progression')
     .select(STAT_PROGRESSION_COLUMNS)
     .order('progression_id', { ascending: true })
 
