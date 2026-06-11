@@ -19,5 +19,6 @@ This will be displayed in a form view and use the editableField component to dis
 7 - [x] Add an area to display a list of blood line banes. The banes should come from the banes in ReferenceDataStore and should only display banes that match the characters bloodline_id.
 8 - [x] Add an area to display a list of blood line gifts. The gifts should come from the gifts in ReferenceDataStore and should only display gifts that match the characters bloodline_id.
 9 - [x] Add an area to display a list of blood line curses. The curses should come from the curses in ReferenceDataStore and should only display curses that match the characters bloodline_id.
+10 - [x] Add four new editableFields components, Strength, Vitality, Mind, and Willpower. These fields should be set to not be editable and should display the minStrength, minVitality, minMind, and minWillpower for the characters bloodline.
 
 ## Bug Fixes

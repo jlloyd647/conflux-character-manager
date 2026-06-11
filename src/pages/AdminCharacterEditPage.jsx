@@ -67,6 +67,14 @@ function formatKingroupValue(kingroupId) {
   return String(kingroupId)
 }
 
+function formatStatValue(value) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  return String(value)
+}
+
 function ReadOnlyField({ label, value }) {
   return (
     <div className="dashboard-profile-field">
@@ -390,6 +398,16 @@ export default function AdminCharacterEditPage() {
       }))
   }, [kingroups, activeCharacter?.bloodlineId])
 
+  const activeBloodline = useMemo(() => {
+    const bloodlineId = Number(activeCharacter?.bloodlineId)
+
+    if (!activeCharacter?.bloodlineId || Number.isNaN(bloodlineId)) {
+      return null
+    }
+
+    return bloodlines.find((bloodline) => bloodline.bloodlineID === bloodlineId) ?? null
+  }, [bloodlines, activeCharacter?.bloodlineId])
+
   const bloodlineBanes = useMemo(() => {
     const bloodlineId = Number(activeCharacter?.bloodlineId)
 
@@ -485,6 +503,34 @@ export default function AdminCharacterEditPage() {
                   onSave={updateCharacterField('kingroupId', (value) =>
                     parseOptionalIntegerField(value, 'Kin Group'),
                   )}
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <EditableField
+                  label="Strength"
+                  value={formatStatValue(activeBloodline?.minStrength)}
+                  disabled
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <EditableField
+                  label="Vitality"
+                  value={formatStatValue(activeBloodline?.minVitality)}
+                  disabled
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <EditableField
+                  label="Mind"
+                  value={formatStatValue(activeBloodline?.minMind)}
+                  disabled
+                />
+              </div>
+              <div className="dashboard-profile-field">
+                <EditableField
+                  label="Willpower"
+                  value={formatStatValue(activeBloodline?.minWillpower)}
+                  disabled
                 />
               </div>
               {isCreateMode ? (
