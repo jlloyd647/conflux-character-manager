@@ -35,5 +35,16 @@ This will be displayed in a form view and use the editableField component to dis
 22 - [x] For Vitality, Mind, Strength, and Willpower, we should be displaying the blood minimums plus the rank calculation from the stat-calulation utils.
 23 - [x] Add an area to display a list of character talents. The talents should use the getCharacterTalents call to the database passing in the characterID, then it should display the TalentName as a list. The talents can be in the dozens so we need to make sure are creating an area to display skills properly. Add a Add Talent and Remove Talent button which should work similar to the Add Skill and Remove Skill buttons. When adding a talent, only talents with the same bloodline_id as the character should be displayed.
 24 - [x] When a user adds or removes a talent, update the xp_spent field in character_stats to match the xp_cost of that talent.
+25 - [x] When a user adds a skill - We need to check for the following:
+
+* If the player has enough XP to buy the skill
+* If the skill has a rank prereq
+* If the skill has a skill prereq
+
+If any of these checks fail, a message should be displayed.
 
 ## Bug Fixes
+
+## Template for copy paste to agent - Ignore this section
+
+I have added a feature update # to admin-edit-character.md - Please implement and mark with an x when completed.

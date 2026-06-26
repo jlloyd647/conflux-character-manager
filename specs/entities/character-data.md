@@ -31,6 +31,7 @@ type Player = {
   characterID: string;
   characterName: string;
   xp: int;
+  xpSpent: int;
   playerID: int;
   bloodlineID: int;
   createdAt: string;
@@ -47,6 +48,7 @@ type Player = {
 | characterID | Numeric identifier for the character record |
 | characterName | Characters full name |
 | xp | Numeric representation of a character resource for skill purchase |
+| xpSpent | Running total of XP spent on stats, skills, and talents |
 | playerID | Connects a character to a player |
 | bloodlineID | Numeric identifier for a characters bloodline |
 | createdAt | Record creation timestamp |
@@ -75,6 +77,11 @@ skill_id: int4
 approved: boolean
 created_at: datetime
 
+### Application mapping
+
+- xp | xp
+- xpSpent | xpSpent (sourced from `character_stats.xp_spent`)
+
 ---
 
 ## Rules
@@ -85,6 +92,8 @@ created_at: datetime
 ---
 
 ## Feature Updates
+
+1 - [x] Add new fields: XP Spent
 
 ---
 
@@ -105,3 +114,7 @@ created_at: datetime
 - Membership status
 - Event attendance tracking
 - Character ownership summary
+
+## Template for copy paste to agent - Ignore this section
+
+I have added a feature update #1 to @specs/entities/character-data.md - Please implement and mark with an x when completed.

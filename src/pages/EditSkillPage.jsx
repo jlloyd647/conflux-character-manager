@@ -7,7 +7,6 @@ import {
   updateSkillByID,
 } from '../services/skillService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
-import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const EMPTY_SKILL = {
   skillID: '',
@@ -16,6 +15,8 @@ const EMPTY_SKILL = {
   costWill: '',
   costMind: '',
   costXP: '',
+  prereqSkillID: '',
+  prereqID: '',
 }
 
 const UPDATABLE_SKILL_FIELDS = new Set([
@@ -24,6 +25,8 @@ const UPDATABLE_SKILL_FIELDS = new Set([
   'costWill',
   'costMind',
   'costXP',
+  'prereqSkillID',
+  'prereqID',
 ])
 
 function parseIntegerField(value, label) {
@@ -54,15 +57,6 @@ function formatFieldValue(value) {
   return String(value)
 }
 
-function ReadOnlyField({ label, value }) {
-  return (
-    <div className="dashboard-profile-field">
-      <dt className="dashboard-profile-label">{label}</dt>
-      <dd className="dashboard-profile-value">{value || '—'}</dd>
-    </div>
-  )
-}
-
 export default function EditSkillPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -70,7 +64,7 @@ export default function EditSkillPage() {
   const isCreateMode = id === 'new'
   const upsertSkill = useReferenceDataStore((state) => state.upsertSkill)
   const skill = useReferenceDataStore((state) =>
-    isCreateMode || !id ? null : state.getSkillById(id),
+    isCreateMode || !id ? null : state.getSkillBySkillID(id),
   )
   const storeSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
   const storeSkillsError = useReferenceDataStore((state) => state.skillsError)
@@ -139,6 +133,11 @@ export default function EditSkillPage() {
         costWill: parseOptionalIntegerField(draftSkill.costWill, 'Will Cost'),
         costMind: parseOptionalIntegerField(draftSkill.costMind, 'Mind Cost'),
         costXP: parseOptionalIntegerField(draftSkill.costXP, 'XP Cost'),
+        prereqSkillID: parseOptionalIntegerField(
+          draftSkill.prereqSkillID,
+          'Prereq Skill ID',
+        ),
+        prereqID: parseOptionalIntegerField(draftSkill.prereqID, 'Prereq ID'),
       }
 
       console.log('[EditSkillPage] creating skill:', {
@@ -149,7 +148,7 @@ export default function EditSkillPage() {
       const createdSkill = await createNewSkill(createInput)
       upsertSkill(createdSkill)
 
-      navigate(`/admin/skills/${createdSkill.id}/edit`, { replace: true })
+      navigate(`/admin/skills/${createdSkill.skillID}/edit`, { replace: true })
     } catch (createError) {
       setError(createError.message)
     } finally {
@@ -246,12 +245,6 @@ export default function EditSkillPage() {
                       )}
                     />
                   </div>
-                  {!isCreateMode && skill?.createdAt ? (
-                    <ReadOnlyField
-                      label="Created"
-                      value={formatDateToMmDdYyyy(skill.createdAt)}
-                    />
-                  ) : null}
                   <div className="dashboard-profile-field">
                     <EditableField
                       label="Skill ID"
@@ -262,6 +255,28 @@ export default function EditSkillPage() {
                       disabled={!isCreateMode}
                       onSave={updateSkillField('skillID', (value) =>
                         parseIntegerField(value, 'Skill ID'),
+                      )}
+                    />
+                  </div>
+                  <div className="dashboard-profile-field">
+                    <EditableField
+                      label="Prereq Skill ID"
+                      value={formatFieldValue(activeSkill?.prereqSkillID)}
+                      inputType="number"
+                      editAtLabel
+                      onSave={updateSkillField('prereqSkillID', (value) =>
+                        parseOptionalIntegerField(value, 'Prereq Skill ID'),
+                      )}
+                    />
+                  </div>
+                  <div className="dashboard-profile-field">
+                    <EditableField
+                      label="Prereq ID"
+                      value={formatFieldValue(activeSkill?.prereqID)}
+                      inputType="number"
+                      editAtLabel
+                      onSave={updateSkillField('prereqID', (value) =>
+                        parseOptionalIntegerField(value, 'Prereq ID'),
                       )}
                     />
                   </div>

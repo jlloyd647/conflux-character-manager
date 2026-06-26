@@ -4,6 +4,7 @@ import { getAllBloodlines } from '../services/bloodlineService'
 import { getAllCurses } from '../services/curseService'
 import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
+import { getAllPrereqs } from '../services/prereqService'
 import { getAllSkills } from '../services/skillService'
 import { getAllStatProgressions } from '../services/statProgressionService'
 import { getAllStats } from '../services/statDefinitionService'
@@ -19,6 +20,7 @@ import { getAllTalents } from '../services/talentService'
  * @typedef {import('../services/statProgressionService').StatProgression} StatProgression
  * @typedef {import('../services/statDefinitionService').Stat} Stat
  * @typedef {import('../services/talentService').Talent} Talent
+ * @typedef {import('../services/prereqService').Prereq} Prereq
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -51,6 +53,10 @@ export const useReferenceDataStore = create((set, get) => ({
   talentsLoading: false,
   talentsError: null,
   talentsLoaded: false,
+  prereqs: [],
+  prereqsLoading: false,
+  prereqsError: null,
+  prereqsLoaded: false,
 
   loadSkills: async () => {
     const { skillsLoading, skillsLoaded, skills } = get()
@@ -80,7 +86,7 @@ export const useReferenceDataStore = create((set, get) => ({
 
   upsertSkill: (skill) =>
     set((state) => {
-      const index = state.skills.findIndex((entry) => entry.id === skill.id)
+      const index = state.skills.findIndex((entry) => entry.skillID === skill.skillID)
 
       if (index >= 0) {
         const skills = [...state.skills]
@@ -94,8 +100,6 @@ export const useReferenceDataStore = create((set, get) => ({
         ),
       }
     }),
-
-  getSkillById: (id) => get().skills.find((skill) => skill.id === id) ?? null,
 
   getSkillBySkillID: (skillID) =>
     get().skills.find((skill) => skill.skillID === Number(skillID)) ?? null,
@@ -434,4 +438,53 @@ export const useReferenceDataStore = create((set, get) => ({
 
   clearTalents: () =>
     set({ talents: [], talentsLoading: false, talentsError: null, talentsLoaded: false }),
+
+  loadPrereqs: async () => {
+    const { prereqsLoading, prereqsLoaded, prereqs } = get()
+
+    if (prereqsLoading) {
+      return prereqs
+    }
+
+    if (prereqsLoaded) {
+      return prereqs
+    }
+
+    set({ prereqsLoading: true, prereqsError: null })
+
+    try {
+      const nextPrereqs = await getAllPrereqs()
+      set({ prereqs: nextPrereqs, prereqsLoading: false, prereqsLoaded: true })
+      return nextPrereqs
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load prereqs'
+      set({ prereqsError: message, prereqsLoading: false, prereqsLoaded: true })
+      throw error
+    }
+  },
+
+  setPrereqs: (prereqs) => set({ prereqs }),
+
+  upsertPrereq: (prereq) =>
+    set((state) => {
+      const index = state.prereqs.findIndex((entry) => entry.prereqID === prereq.prereqID)
+
+      if (index >= 0) {
+        const prereqs = [...state.prereqs]
+        prereqs[index] = prereq
+        return { prereqs }
+      }
+
+      return {
+        prereqs: [...state.prereqs, prereq].sort(
+          (left, right) => left.prereqID - right.prereqID,
+        ),
+      }
+    }),
+
+  getPrereqByPrereqID: (prereqID) =>
+    get().prereqs.find((prereq) => prereq.prereqID === Number(prereqID)) ?? null,
+
+  clearPrereqs: () =>
+    set({ prereqs: [], prereqsLoading: false, prereqsError: null, prereqsLoaded: false }),
 }))

@@ -21,12 +21,14 @@ import {
   updateCharacterColumnById,
   updateCharacterStatsAndXpSpent,
 } from '../services/characterService'
+import { getCharacterSkillPrereq } from '../services/characterSkillPrereqService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
 import {
   calculateDisplayedPageStats,
   createEmptyBucketValues,
 } from '../utils/characterStatBuckets'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
+import { checkSkillPurchase, checkTalentPurchase } from '../utils/skillBuy'
 import {
   calculateCharacterStatsXpCostChange,
   formatStatXpCostDelta,
@@ -155,6 +157,11 @@ export default function AdminCharacterEditPage() {
     skills: [],
     error: '',
   })
+  const [characterSkillPrereqState, setCharacterSkillPrereqState] = useState({
+    characterId: null,
+    prereq: null,
+    error: '',
+  })
   const [characterTalentsState, setCharacterTalentsState] = useState({
     characterId: null,
     talents: [],
@@ -174,6 +181,10 @@ export default function AdminCharacterEditPage() {
   const skillsLoaded = useReferenceDataStore((state) => state.skillsLoaded)
   const loadSkills = useReferenceDataStore((state) => state.loadSkills)
   const getSkillBySkillID = useReferenceDataStore((state) => state.getSkillBySkillID)
+  const prereqs = useReferenceDataStore((state) => state.prereqs)
+  const prereqsLoading = useReferenceDataStore((state) => state.prereqsLoading)
+  const prereqsLoaded = useReferenceDataStore((state) => state.prereqsLoaded)
+  const loadPrereqs = useReferenceDataStore((state) => state.loadPrereqs)
   const allTalentsLoading = useReferenceDataStore((state) => state.talentsLoading)
   const talentsLoaded = useReferenceDataStore((state) => state.talentsLoaded)
   const referenceTalentsError = useReferenceDataStore((state) => state.talentsError)
@@ -271,6 +282,26 @@ export default function AdminCharacterEditPage() {
         }
       })
 
+    getCharacterSkillPrereq(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterSkillPrereqState({
+            characterId,
+            prereq: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterSkillPrereqState({
+            characterId,
+            prereq: null,
+            error: loadError.message,
+          })
+        }
+      })
+
     return () => {
       active = false
     }
@@ -346,10 +377,18 @@ export default function AdminCharacterEditPage() {
     characterSkillsState.characterId === character?.characterId
       ? characterSkillsState.skills
       : []
+  const characterSkillPrereq =
+    characterSkillPrereqState.characterId === character?.characterId
+      ? characterSkillPrereqState.prereq
+      : null
   const skillsLoading =
     Boolean(character?.characterId) &&
     !isCreateMode &&
     characterSkillsState.characterId !== character?.characterId
+  const skillPrereqLoading =
+    Boolean(character?.characterId) &&
+    !isCreateMode &&
+    characterSkillPrereqState.characterId !== character?.characterId
   const skillsError = characterSkillsState.error
   const characterTalents =
     characterTalentsState.characterId === character?.characterId
@@ -473,12 +512,32 @@ export default function AdminCharacterEditPage() {
   }, [authLoading, showSkillPicker, allSkillsLoading, skillsLoaded, loadSkills])
 
   useEffect(() => {
+    if (authLoading || !showSkillPicker || prereqsLoading || prereqsLoaded) {
+      return undefined
+    }
+
+    loadPrereqs().catch((loadError) => {
+      setSkillsError(loadError.message)
+    })
+  }, [authLoading, showSkillPicker, prereqsLoading, prereqsLoaded, loadPrereqs])
+
+  useEffect(() => {
     if (authLoading || !showTalentPicker || allTalentsLoading || talentsLoaded) {
       return undefined
     }
 
     loadTalents().catch(() => {})
   }, [authLoading, showTalentPicker, allTalentsLoading, talentsLoaded, loadTalents])
+
+  useEffect(() => {
+    if (authLoading || !showTalentPicker || prereqsLoading || prereqsLoaded) {
+      return undefined
+    }
+
+    loadPrereqs().catch((loadError) => {
+      setTalentsError(loadError.message)
+    })
+  }, [authLoading, showTalentPicker, prereqsLoading, prereqsLoaded, loadPrereqs])
 
   async function handleAddSkill(row) {
     if (!character?.characterId || addingSkill) {
@@ -497,12 +556,39 @@ export default function AdminCharacterEditPage() {
       return
     }
 
+    const skill = getSkillBySkillID(skillId) ?? row
+
+    if (!skill) {
+      setSkillsError('Skill not found.')
+      return
+    }
+
+    if (skillPrereqLoading) {
+      setSkillsError('Loading skill prerequisites…')
+      return
+    }
+
+    const purchaseCheck = checkSkillPurchase({
+      character,
+      skill,
+      characterSkills,
+      characterSkillPrereq,
+      prereqs,
+      xpSpent: characterStats?.statXPSpent ?? 0,
+    })
+
+    if (!purchaseCheck.valid) {
+      setSkillsError(purchaseCheck.message)
+      return
+    }
+
     setAddingSkill(true)
     setSkillsError('')
 
     try {
       const { characterSkill, characterStats: updatedCharacterStats } =
         await addCharacterSkills(character.characterId, skillId)
+      const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(character.characterId)
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
@@ -514,6 +600,11 @@ export default function AdminCharacterEditPage() {
         skills: [...previous.skills, characterSkill],
         error: '',
       }))
+      setCharacterSkillPrereqState({
+        characterId: character.characterId,
+        prereq: updatedCharacterSkillPrereq,
+        error: '',
+      })
       setShowSkillPicker(false)
     } catch (addError) {
       setSkillsError(addError.message)
@@ -539,12 +630,18 @@ export default function AdminCharacterEditPage() {
 
     try {
       const updatedCharacterStats = await removeCharacterSkill(character.characterId, skillId)
+      const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(character.characterId)
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
         stats: updatedCharacterStats,
         error: '',
       }))
+      setCharacterSkillPrereqState({
+        characterId: character.characterId,
+        prereq: updatedCharacterSkillPrereq,
+        error: '',
+      })
       setCharacterSkillsState((previous) => {
         const skills = previous.skills.filter((entry) => entry.skillId !== skillId)
 
@@ -579,6 +676,31 @@ export default function AdminCharacterEditPage() {
 
     if (characterTalents.some((talent) => talent.talentId === talentId)) {
       setTalentsError('Talent is already assigned to this character.')
+      return
+    }
+
+    const talent = getTalentByTalentID(talentId) ?? row
+
+    if (!talent) {
+      setTalentsError('Talent not found.')
+      return
+    }
+
+    if (skillPrereqLoading) {
+      setTalentsError('Loading talent prerequisites…')
+      return
+    }
+
+    const purchaseCheck = checkTalentPurchase({
+      character,
+      talent,
+      characterSkillPrereq,
+      prereqs,
+      xpSpent: characterStats?.statXPSpent ?? 0,
+    })
+
+    if (!purchaseCheck.valid) {
+      setTalentsError(purchaseCheck.message)
       return
     }
 

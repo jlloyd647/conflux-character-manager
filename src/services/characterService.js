@@ -61,6 +61,7 @@ const CHARACTER_TALENT_COLUMNS = [
  *   characterId: string,
  *   characterName: string,
  *   xp: number,
+ *   xpSpent: number,
  *   playerId: string,
  *   bloodlineId: number,
  *   kingroupId: number | null,
@@ -109,6 +110,7 @@ function mapCharacterRow(row) {
     characterId: row.character_id != null ? String(row.character_id) : '',
     characterName: row.character_name ?? '',
     xp: row.xp ?? 0,
+    xpSpent: Number(row.xp_spent ?? 0),
     playerId: row.player_id,
     bloodlineId: row.bloodline_id ?? 0,
     kingroupId: row.kingroup_id ?? null,
@@ -199,6 +201,69 @@ function parseNumericCharacterId(characterId) {
   }
 
   return numericCharacterId
+}
+
+/**
+ * @param {number[]} characterIds
+ * @returns {Promise<Map<number, number>>}
+ */
+async function fetchXpSpentByCharacterIds(characterIds) {
+  if (!characterIds.length) {
+    return new Map()
+  }
+
+  const { data, error } = await supabase
+    .from('character_stats')
+    .select('character_id, xp_spent')
+    .in('character_id', characterIds)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return new Map(
+    (data ?? []).map((row) => [
+      Number(row.character_id),
+      Number(row.xp_spent ?? 0),
+    ]),
+  )
+}
+
+/**
+ * @param {Character | null} character
+ * @param {Map<number, number>} xpSpentByCharacterId
+ * @returns {Character | null}
+ */
+function attachXpSpentToCharacter(character, xpSpentByCharacterId) {
+  if (!character) {
+    return null
+  }
+
+  const numericCharacterId = parseNumericCharacterId(character.characterId)
+
+  return {
+    ...character,
+    xpSpent: xpSpentByCharacterId.get(numericCharacterId) ?? 0,
+  }
+}
+
+/**
+ * @param {Character[]} characters
+ * @returns {Promise<Character[]>}
+ */
+async function attachXpSpentToCharacters(characters) {
+  if (!characters.length) {
+    return characters
+  }
+
+  const characterIds = characters.map((character) =>
+    parseNumericCharacterId(character.characterId),
+  )
+  const xpSpentByCharacterId = await fetchXpSpentByCharacterIds(characterIds)
+
+  return characters.map((character) =>
+    attachXpSpentToCharacter(character, xpSpentByCharacterId),
+  )
 }
 
 /**
@@ -398,7 +463,17 @@ export async function getCharacterById(characterId) {
     throw new Error(error.message)
   }
 
-  return mapCharacterRow(data)
+  const character = mapCharacterRow(data)
+
+  if (!character) {
+    return null
+  }
+
+  const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([
+    parseNumericCharacterId(character.characterId),
+  ])
+
+  return attachXpSpentToCharacter(character, xpSpentByCharacterId)
 }
 
 /**
@@ -429,7 +504,9 @@ export async function getCharactersByPlayerId(playerId) {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapCharacterRow).filter(Boolean)
+  const characters = (data ?? []).map(mapCharacterRow).filter(Boolean)
+
+  return attachXpSpentToCharacters(characters)
 }
 
 /**
@@ -495,7 +572,11 @@ export async function createCharacter({
     await createCharacterStats(character.characterId, stats)
   }
 
-  return character
+  const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([
+    parseNumericCharacterId(character.characterId),
+  ])
+
+  return attachXpSpentToCharacter(character, xpSpentByCharacterId)
 }
 
 /**
@@ -541,7 +622,11 @@ export async function updateCharacterColumnById(characterId, column, value) {
     throw new Error('Character not found')
   }
 
-  return character
+  const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([
+    parseNumericCharacterId(character.characterId),
+  ])
+
+  return attachXpSpentToCharacter(character, xpSpentByCharacterId)
 }
 
 /**
@@ -595,8 +680,17 @@ export async function changeCharacterBloodline(characterId, bloodlineId) {
   }
 
   const characterStats = await getCharacterStats(character.characterId)
+  const characterWithXpSpent = attachXpSpentToCharacter(
+    character,
+    new Map([
+      [
+        parseNumericCharacterId(character.characterId),
+        characterStats?.statXPSpent ?? 0,
+      ],
+    ]),
+  )
 
-  return { character, characterStats }
+  return { character: characterWithXpSpent, characterStats }
 }
 
 /**
@@ -663,15 +757,27 @@ export async function createCharacterStats(characterId, stats) {
     throw new Error('No stats provided to create.')
   }
 
-  const { data, error } = await supabase
-    .from('character_stats')
-    .insert({
-      character_id: numericCharacterId,
-      xp_spent: 0,
-      ...payload,
-    })
-    .select(CHARACTER_STAT_COLUMNS)
-    .single()
+  const existingStats = await getCharacterStats(characterId)
+  const statsPayload = {
+    xp_spent: 0,
+    ...payload,
+  }
+
+  const { data, error } = existingStats
+    ? await supabase
+        .from('character_stats')
+        .update(statsPayload)
+        .eq('character_id', numericCharacterId)
+        .select(CHARACTER_STAT_COLUMNS)
+        .single()
+    : await supabase
+        .from('character_stats')
+        .insert({
+          character_id: numericCharacterId,
+          ...statsPayload,
+        })
+        .select(CHARACTER_STAT_COLUMNS)
+        .single()
 
   if (error) {
     throw new Error(error.message)

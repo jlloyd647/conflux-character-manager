@@ -1,26 +1,26 @@
 import { supabase } from './supabaseClient'
 
 const SKILL_COLUMNS = [
-  'id',
-  'created_at',
   'skill_id',
   'name',
   'description',
   'cost_will',
   'cost_mind',
   'cost_xp',
+  'prereq_skill_id',
+  'prereq_id',
 ].join(', ')
 
 /**
  * @typedef {{
- *   id: string,
- *   createdAt: string,
  *   skillID: number,
  *   skillName: string,
  *   skillDescription: string,
  *   costWill: number | null,
  *   costMind: number | null,
  *   costXP: number | null,
+ *   prereqSkillID: number | null,
+ *   prereqID: number | null,
  * }} Skill
  */
 
@@ -31,14 +31,14 @@ function mapSkillRow(row) {
   }
 
   return {
-    id: row.id,
-    createdAt: row.created_at,
     skillID: row.skill_id ?? 0,
     skillName: row.name ?? '',
     skillDescription: row.description ?? '',
     costWill: row.cost_will ?? null,
     costMind: row.cost_mind ?? null,
     costXP: row.cost_xp ?? null,
+    prereqSkillID: row.prereq_skill_id ?? null,
+    prereqID: row.prereq_id ?? null,
   }
 }
 
@@ -69,10 +69,10 @@ export async function getAllSkills() {
 }
 
 /**
- * @param {string} id Skill row UUID (`skills.id`)
+ * @param {string | number} skillID Numeric skill business id (`skills.skill_id`)
  * @returns {Promise<Skill | null>}
  */
-export async function getSkillByID(id) {
+export async function getSkillByID(skillID) {
   const {
     data: { user },
     error: authError,
@@ -86,39 +86,39 @@ export async function getSkillByID(id) {
     throw new Error('Not authenticated')
   }
 
-  console.log('[skillService] getSkillByID request:', {
-    id,
-    filterColumn: 'id',
-  })
+  const numericSkillID = Number(skillID)
+
+  if (Number.isNaN(numericSkillID)) {
+    throw new Error('Invalid skill id')
+  }
 
   const { data, error } = await supabase
     .from('skills')
     .select(SKILL_COLUMNS)
-    .eq('id', id)
+    .eq('skill_id', numericSkillID)
     .maybeSingle()
 
   if (error) {
-    console.error('[skillService] getSkillByID failed:', { id, error })
     throw new Error(error.message)
   }
-
-  console.log('[skillService] getSkillByID response:', data)
 
   return mapSkillRow(data)
 }
 
 /**
- * @param {string} id Skill row UUID (`skills.id`)
+ * @param {string | number} skillID Numeric skill business id (`skills.skill_id`)
  * @param {Partial<{
  *   skillName: string,
  *   skillDescription: string,
  *   costWill: number | null,
  *   costMind: number | null,
  *   costXP: number | null,
+ *   prereqSkillID: number | null,
+ *   prereqID: number | null,
  * }>} updates
  * @returns {Promise<Skill>}
  */
-export async function updateSkillByID(id, updates) {
+export async function updateSkillByID(skillID, updates) {
   const {
     data: { user },
     error: authError,
@@ -130,6 +130,12 @@ export async function updateSkillByID(id, updates) {
 
   if (!user) {
     throw new Error('Not authenticated')
+  }
+
+  const numericSkillID = Number(skillID)
+
+  if (Number.isNaN(numericSkillID)) {
+    throw new Error('Invalid skill id')
   }
 
   const payload = {}
@@ -154,36 +160,28 @@ export async function updateSkillByID(id, updates) {
     payload.cost_xp = updates.costXP
   }
 
+  if (updates.prereqSkillID !== undefined) {
+    payload.prereq_skill_id = updates.prereqSkillID
+  }
+
+  if (updates.prereqID !== undefined) {
+    payload.prereq_id = updates.prereqID
+  }
+
   if (!Object.keys(payload).length) {
     throw new Error('No valid fields provided to update.')
   }
 
-  console.log('[skillService] updateSkillByID request:', {
-    id,
-    filterColumn: 'id',
-    updates,
-    payload,
-    select: SKILL_COLUMNS,
-  })
-
   const { data, error } = await supabase
     .from('skills')
     .update(payload)
-    .eq('id', id)
+    .eq('skill_id', numericSkillID)
     .select(SKILL_COLUMNS)
     .single()
 
   if (error) {
-    console.error('[skillService] updateSkillByID failed:', {
-      id,
-      updates,
-      payload,
-      error,
-    })
     throw new Error(error.message)
   }
-
-  console.log('[skillService] updateSkillByID response:', data)
 
   const skill = mapSkillRow(data)
 
@@ -202,6 +200,8 @@ export async function updateSkillByID(id, updates) {
  *   costWill?: number | null,
  *   costMind?: number | null,
  *   costXP?: number | null,
+ *   prereqSkillID?: number | null,
+ *   prereqID?: number | null,
  * }} input
  * @returns {Promise<Skill>}
  */
@@ -212,6 +212,8 @@ export async function createNewSkill({
   costWill = null,
   costMind = null,
   costXP = null,
+  prereqSkillID = null,
+  prereqID = null,
 }) {
   const {
     data: { user },
@@ -233,20 +235,9 @@ export async function createNewSkill({
     cost_will: costWill,
     cost_mind: costMind,
     cost_xp: costXP,
+    prereq_skill_id: prereqSkillID,
+    prereq_id: prereqID,
   }
-
-  console.log('[skillService] createNewSkill request:', {
-    input: {
-      skillID,
-      skillName,
-      skillDescription,
-      costWill,
-      costMind,
-      costXP,
-    },
-    insertPayload,
-    select: SKILL_COLUMNS,
-  })
 
   const { data, error } = await supabase
     .from('skills')
@@ -255,14 +246,8 @@ export async function createNewSkill({
     .single()
 
   if (error) {
-    console.error('[skillService] createNewSkill failed:', {
-      insertPayload,
-      error,
-    })
     throw new Error(error.message)
   }
-
-  console.log('[skillService] createNewSkill response:', data)
 
   const skill = mapSkillRow(data)
 

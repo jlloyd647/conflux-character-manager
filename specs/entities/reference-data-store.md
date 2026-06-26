@@ -21,6 +21,7 @@ Store will use the Zustand library. Stores should be saved within the stores fol
 - Store will include a list of stat progressions
 - Store will include a list of stats
 - Store will include a list of talents
+- Store will include a list of prereqs
 
 ## Feature Updates
 

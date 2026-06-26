@@ -127,7 +127,7 @@ export default function DataTable({
           ) : (
             data.map((row, rowIndex) => (
               <tr
-                key={row.id ?? rowIndex}
+                key={row.id ?? row.skillID ?? rowIndex}
                 className={isRowClickable ? 'data-table-row-clickable' : undefined}
                 onClick={isRowClickable ? () => handleRowActivate(row) : undefined}
                 onKeyDown={isRowClickable ? (event) => handleRowKeyDown(event, row) : undefined}

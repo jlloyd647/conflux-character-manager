@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import { useAuth } from '../hooks/useAuth'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
-import { formatDateToMmDdYyyy } from '../utils/formatDate'
 
 const skillColumns = [
   { key: 'skillID', header: 'Skill ID' },
@@ -11,7 +10,8 @@ const skillColumns = [
   { key: 'costXP', header: 'XP Cost' },
   { key: 'costWill', header: 'Will Cost' },
   { key: 'costMind', header: 'Mind Cost' },
-  { key: 'createdAt', header: 'Created', format: formatDateToMmDdYyyy },
+  { key: 'prereqSkillID', header: 'Prereq Skill ID' },
+  { key: 'prereqID', header: 'Prereq ID' },
 ]
 
 export default function SkillManagementPage() {
@@ -45,7 +45,7 @@ export default function SkillManagementPage() {
           columns={skillColumns}
           emptyMessage="No skills found."
           link="/admin/skills/:id/edit"
-          linkId="id"
+          linkId="skillID"
         />
       )}
     </div>
