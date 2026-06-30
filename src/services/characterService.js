@@ -17,6 +17,9 @@ const CHARACTER_COLUMNS = [
   'player_id',
   'bloodline_id',
   'kingroup_id',
+  'approved',
+  'backstory',
+  'npl_contact_method',
   'created_at',
 ].join(', ')
 
@@ -27,6 +30,9 @@ const CHARACTER_FIELD_TO_COLUMN = {
   xp: 'xp',
   bloodlineId: 'bloodline_id',
   kingroupId: 'kingroup_id',
+  approved: 'approved',
+  backstory: 'backstory',
+  nplContactMethod: 'npl_contact_method',
 }
 
 const CHARACTER_STAT_COLUMNS = [
@@ -65,6 +71,9 @@ const CHARACTER_TALENT_COLUMNS = [
  *   playerId: string,
  *   bloodlineId: number,
  *   kingroupId: number | null,
+ *   approved: boolean,
+ *   backstory: string,
+ *   nplContactMethod: number | null,
  *   createdAt: string,
  * }} Character
  */
@@ -110,10 +119,14 @@ function mapCharacterRow(row) {
     characterId: row.character_id != null ? String(row.character_id) : '',
     characterName: row.character_name ?? '',
     xp: row.xp ?? 0,
-    xpSpent: Number(row.xp_spent ?? 0),
-    playerId: row.player_id,
+    xpSpent: 0,
+    playerId: row.player_id != null ? String(row.player_id) : '',
     bloodlineId: row.bloodline_id ?? 0,
     kingroupId: row.kingroup_id ?? null,
+    approved: row.approved ?? false,
+    backstory: row.backstory ?? '',
+    nplContactMethod:
+      row.npl_contact_method != null ? Number(row.npl_contact_method) : null,
     createdAt: row.created_at,
   }
 }
@@ -425,7 +438,7 @@ export async function listCharacters() {
 
   const { data, error } = await supabase
     .from('characters')
-    .select('id, character_id, character_name, player_id, xp, bloodline_id, kingroup_id, created_at')
+    .select('id, character_id, character_name, player_id, xp, bloodline_id, kingroup_id, approved, backstory, created_at')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -477,6 +490,36 @@ export async function getCharacterById(characterId) {
 }
 
 /**
+ * @returns {Promise<Character[]>}
+ */
+export async function getUnapprovedCharacters() {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const { data, error } = await supabase
+    .from('characters')
+    .select(CHARACTER_COLUMNS)
+    .eq('approved', false)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map(mapCharacterRow).filter(Boolean)
+}
+
+/**
  * @param {string} playerId
  * @returns {Promise<Character[]>}
  */
@@ -516,6 +559,8 @@ export async function getCharactersByPlayerId(playerId) {
  *   bloodlineId: number,
  *   kingroupId?: number | null,
  *   xp?: number,
+ *   backstory?: string,
+ *   nplContactMethod?: number | null,
  *   stats?: Partial<{
  *     vitality: number | null,
  *     mind: number | null,
@@ -531,6 +576,8 @@ export async function createCharacter({
   bloodlineId,
   kingroupId = null,
   xp = 0,
+  backstory = '',
+  nplContactMethod = null,
   stats,
 }) {
   const {
@@ -554,6 +601,9 @@ export async function createCharacter({
       bloodline_id: bloodlineId,
       kingroup_id: kingroupId,
       xp,
+      approved: false,
+      backstory,
+      npl_contact_method: nplContactMethod,
     })
     .select(CHARACTER_COLUMNS)
     .single()
@@ -570,6 +620,52 @@ export async function createCharacter({
 
   if (stats && Object.keys(buildCharacterStatsCreatePayload(stats)).length) {
     await createCharacterStats(character.characterId, stats)
+  }
+
+  const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([
+    parseNumericCharacterId(character.characterId),
+  ])
+
+  return attachXpSpentToCharacter(character, xpSpentByCharacterId)
+}
+
+/**
+ * @param {string} characterId Character record id (`characters.id`)
+ * @param {number} xp Total XP to assign on approval
+ * @returns {Promise<Character>}
+ */
+export async function approveCharacter(characterId, xp) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError) {
+    throw new Error(authError.message)
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const { data, error } = await supabase
+    .from('characters')
+    .update({
+      approved: true,
+      xp,
+    })
+    .eq('id', characterId)
+    .select(CHARACTER_COLUMNS)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const character = mapCharacterRow(data)
+
+  if (!character) {
+    throw new Error('Character not found')
   }
 
   const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([

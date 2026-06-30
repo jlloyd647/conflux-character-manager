@@ -103,6 +103,8 @@ Non-negotiable constraints.
 
 1 - [x] Update the email field to use the EditableField component but do not hook it up to any services.
 2 - [x] Update the first name, last name, preferred name, pronouns, and discord fields to use the EditableField component but do not hook it up to any services.
+3 - [x] Update the Characters section to show a list of all characters that the player currently has. It should show the character id, name, xp, and approval status.
+4 - [x] Update to show a - for xp if approval is pending.
 
 ---
 

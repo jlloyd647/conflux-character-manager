@@ -47,6 +47,12 @@ export const routeRegistry = [
     navLabel: 'Dashboard',
   },
   {
+    path: '/new-player',
+    page: 'NewPlayerPage',
+    layout: 'app',
+    access: 'logged-in',
+  },
+  {
     path: '/characters/create',
     page: 'CharacterCreatePage',
     layout: 'app',
@@ -93,8 +99,20 @@ export const routeRegistry = [
     access: 'admin',
   },
   {
+    path: '/admin/players/:id/approve',
+    page: 'AdminApprovePlayerPage',
+    layout: 'app',
+    access: 'admin',
+  },
+  {
     path: '/admin/characters/:id/edit',
     page: 'AdminCharacterEditPage',
+    layout: 'app',
+    access: 'admin',
+  },
+  {
+    path: '/admin/characters/:id/approve',
+    page: 'AdminApproveCharacterPage',
     layout: 'app',
     access: 'admin',
   },

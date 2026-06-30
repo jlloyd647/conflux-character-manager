@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import DataTable from '../components/DataTable'
 import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
+import { useRowStatusName } from '../hooks/useRowStatusName'
+import { getCharactersByPlayerId } from '../services/characterService'
 import {
   getPlayerByUserId,
   updatePlayerColumnById,
@@ -25,13 +28,24 @@ function formatMemberSince(dateString) {
   })
 }
 
-function formatLabel(value) {
-  if (!value) {
+function formatApprovalStatus(approved) {
+  return approved ? 'Approved' : 'Pending'
+}
+
+function formatCharacterXp(value, row) {
+  if (!row.approved) {
     return '—'
   }
 
-  return value.charAt(0).toUpperCase() + value.slice(1)
+  return value
 }
+
+const characterColumns = [
+  { key: 'characterId', header: 'Character ID' },
+  { key: 'characterName', header: 'Name' },
+  { key: 'xp', header: 'XP', format: formatCharacterXp },
+  { key: 'approved', header: 'Approval Status', format: formatApprovalStatus },
+]
 
 function ProfileField({ label, value }) {
   return (
@@ -46,8 +60,12 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const { user, userType, loading: authLoading } = useAuth()
   const [player, setPlayer] = useState(null)
+  const [characters, setCharacters] = useState([])
+  const [charactersLoading, setCharactersLoading] = useState(false)
+  const [charactersError, setCharactersError] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const playerStatusName = useRowStatusName(player?.status)
 
   useEffect(() => {
     if (!authLoading && userType === 'admin') {
@@ -66,6 +84,9 @@ export default function DashboardPage() {
       .then((data) => {
         if (active) {
           setPlayer(data)
+          if (!data) {
+            navigate('/new-player', { replace: true })
+          }
         }
       })
       .catch((loadError) => {
@@ -83,6 +104,40 @@ export default function DashboardPage() {
       active = false
     }
   }, [authLoading, user?.id])
+
+  useEffect(() => {
+    if (!player?.playerId) {
+      setCharacters([])
+      setCharactersLoading(false)
+      return undefined
+    }
+
+    let active = true
+
+    setCharactersLoading(true)
+    setCharactersError('')
+
+    getCharactersByPlayerId(player.playerId)
+      .then((data) => {
+        if (active) {
+          setCharacters(data)
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharactersError(loadError.message)
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setCharactersLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [player?.playerId])
 
   if (authLoading || userType === 'admin') {
     return null
@@ -132,8 +187,10 @@ export default function DashboardPage() {
         <section className="dashboard-section dashboard-empty-state">
           <h2>Profile not found</h2>
           <p>
-            We could not find a player profile linked to your account. Please
-            contact staff if you believe this is an error.
+            We could not find a player profile linked to your account.{' '}
+            <Link className="dashboard-action-link" to="/new-player">
+              Create your player profile
+            </Link>
           </p>
         </section>
       ) : null}
@@ -185,7 +242,7 @@ export default function DashboardPage() {
                     onSave={updatePlayerField('email')}
                   />
                 </div>
-                <ProfileField label="Status" value={formatLabel(player.status)} />
+                <ProfileField label="Status" value={playerStatusName} />
                 <div className="dashboard-profile-field">
                   <EditableField
                     label="Discord"
@@ -201,14 +258,35 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="dashboard-section">
+          <section className="dashboard-section dashboard-characters-section">
             <h2 className="dashboard-section-title">Characters</h2>
-            <div className="dashboard-card dashboard-empty-card">
-              <p>You do not have any characters yet.</p>
-              <Link className="dashboard-action-link" to="/characters/create">
-                Create Character
-              </Link>
-            </div>
+
+            {charactersError ? (
+              <p className="dashboard-error" role="alert">
+                {charactersError}
+              </p>
+            ) : null}
+
+            {charactersLoading ? (
+              <p className="dashboard-loading" role="status">
+                Loading characters…
+              </p>
+            ) : characters.length > 0 ? (
+              <DataTable
+                data={characters}
+                columns={characterColumns}
+                emptyMessage="You do not have any characters yet."
+                link="/characters/:characterId"
+                linkId="id"
+              />
+            ) : (
+              <div className="dashboard-card dashboard-empty-card">
+                <p>You do not have any characters yet.</p>
+                <Link className="dashboard-action-link" to="/characters/create">
+                  Create Character
+                </Link>
+              </div>
+            )}
           </section>
 
           <section className="dashboard-section">

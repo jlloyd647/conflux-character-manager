@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import AuthFormCard from '../components/AuthFormCard'
 import { useAuth } from '../hooks/useAuth'
 import { register } from '../services/authService'
-import { getDashboardPath } from '../routes/routeRegistry'
+import { getPostAuthPath } from '../services/playerService'
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -22,7 +22,9 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate(getDashboardPath(userType), { replace: true })
+      getPostAuthPath(userType)
+        .then((path) => navigate(path, { replace: true }))
+        .catch(() => navigate('/dashboard', { replace: true }))
     }
   }, [authLoading, isAuthenticated, userType, navigate])
 
@@ -66,7 +68,8 @@ export default function RegisterPage() {
       const { session } = await register({ email: email.trim(), password })
 
       if (session) {
-        navigate('/dashboard', { replace: true })
+        const path = await getPostAuthPath()
+        navigate(path, { replace: true })
         return
       }
 

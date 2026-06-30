@@ -5,6 +5,7 @@ import { getAllCurses } from '../services/curseService'
 import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
 import { getAllPrereqs } from '../services/prereqService'
+import { getAllRowStatuses } from '../services/rowStatusService'
 import { getAllSkills } from '../services/skillService'
 import { getAllStatProgressions } from '../services/statProgressionService'
 import { getAllStats } from '../services/statDefinitionService'
@@ -21,6 +22,7 @@ import { getAllTalents } from '../services/talentService'
  * @typedef {import('../services/statDefinitionService').Stat} Stat
  * @typedef {import('../services/talentService').Talent} Talent
  * @typedef {import('../services/prereqService').Prereq} Prereq
+ * @typedef {import('../services/rowStatusService').RowStatus} RowStatus
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -57,6 +59,10 @@ export const useReferenceDataStore = create((set, get) => ({
   prereqsLoading: false,
   prereqsError: null,
   prereqsLoaded: false,
+  rowStatuses: [],
+  rowStatusesLoading: false,
+  rowStatusesError: null,
+  rowStatusesLoaded: false,
 
   loadSkills: async () => {
     const { skillsLoading, skillsLoaded, skills } = get()
@@ -487,4 +493,53 @@ export const useReferenceDataStore = create((set, get) => ({
 
   clearPrereqs: () =>
     set({ prereqs: [], prereqsLoading: false, prereqsError: null, prereqsLoaded: false }),
+
+  loadRowStatuses: async () => {
+    const { rowStatusesLoading, rowStatusesLoaded, rowStatuses } = get()
+
+    if (rowStatusesLoading) {
+      return rowStatuses
+    }
+
+    if (rowStatusesLoaded) {
+      return rowStatuses
+    }
+
+    set({ rowStatusesLoading: true, rowStatusesError: null })
+
+    try {
+      const nextRowStatuses = await getAllRowStatuses()
+      set({
+        rowStatuses: nextRowStatuses,
+        rowStatusesLoading: false,
+        rowStatusesLoaded: true,
+      })
+      return nextRowStatuses
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load row statuses'
+      set({ rowStatusesError: message, rowStatusesLoading: false, rowStatusesLoaded: true })
+      throw error
+    }
+  },
+
+  getRowStatusByRowStatusID: (rowStatusID) =>
+    get().rowStatuses.find((status) => status.rowStatusID === Number(rowStatusID)) ??
+    null,
+
+  getRowStatusName: (rowStatusID) => {
+    if (rowStatusID === null || rowStatusID === undefined || rowStatusID === '') {
+      return '—'
+    }
+
+    return get().getRowStatusByRowStatusID(rowStatusID)?.statusName ?? '—'
+  },
+
+  clearRowStatuses: () =>
+    set({
+      rowStatuses: [],
+      rowStatusesLoading: false,
+      rowStatusesError: null,
+      rowStatusesLoaded: false,
+    }),
 }))

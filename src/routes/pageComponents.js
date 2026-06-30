@@ -1,3 +1,5 @@
+import AdminApproveCharacterPage from '../pages/AdminApproveCharacterPage'
+import AdminApprovePlayerPage from '../pages/AdminApprovePlayerPage'
 import AdminCharacterEditPage from '../pages/AdminCharacterEditPage'
 import AdminDashboardPage from '../pages/AdminDashboardPage'
 import AdminPlayerEditPage from '../pages/AdminPlayerEditPage'
@@ -9,6 +11,7 @@ import ForgotPasswordPage from '../pages/ForgotPasswordPage'
 import HomePage from '../pages/HomePage'
 import ItemManagementPage from '../pages/ItemManagementPage'
 import LoginPage from '../pages/LoginPage'
+import NewPlayerPage from '../pages/NewPlayerPage'
 import RegisterPage from '../pages/RegisterPage'
 import ResetPasswordPage from '../pages/ResetPasswordPage'
 import EditSkillPage from '../pages/EditSkillPage'
@@ -24,6 +27,7 @@ export const pageComponents = {
   ForgotPasswordPage,
   ResetPasswordPage,
   DashboardPage,
+  NewPlayerPage,
   CharacterCreatePage,
   CharacterDetailPage,
   CharacterEditPage,
@@ -32,6 +36,8 @@ export const pageComponents = {
   StaffPlayerListPage,
   AdminDashboardPage,
   AdminCharacterEditPage,
+  AdminApproveCharacterPage,
+  AdminApprovePlayerPage,
   AdminPlayerEditPage,
   EditSkillPage,
   SkillManagementPage,

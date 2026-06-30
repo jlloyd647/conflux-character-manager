@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import AuthFormCard from '../components/AuthFormCard'
 import { useAuth } from '../hooks/useAuth'
 import { login } from '../services/authService'
-import { getDashboardPath } from '../routes/routeRegistry'
+import { getPostAuthPath } from '../services/playerService'
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -30,7 +30,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate(getDashboardPath(userType), { replace: true })
+      getPostAuthPath(userType)
+        .then((path) => navigate(path, { replace: true }))
+        .catch(() => navigate('/dashboard', { replace: true }))
     }
   }, [authLoading, isAuthenticated, userType, navigate])
 
@@ -63,7 +65,8 @@ export default function LoginPage() {
 
     try {
       await login({ email: email.trim(), password })
-      navigate('/dashboard', { replace: true })
+      const path = await getPostAuthPath()
+      navigate(path, { replace: true })
     } catch (error) {
       setSubmitError(error.message)
     } finally {

@@ -1,3 +1,5 @@
+import CharacterSheet from '../components/CharacterSheet'
+
 export default function CharacterEditPage() {
-  return <h1>CharacterEditPage</h1>
+  return <CharacterSheet mode="player" />
 }

@@ -39,6 +39,15 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 
 ---
 
+### `/new-player`
+
+**Page:** `NewPlayerPage`  
+**Layout:** `AppLayout`  
+**Access:** Logged-in users  
+**Purpose:** Create a player profile for users without an associated player record
+
+---
+
 ### `/characters/create`
 
 **Page:** `CharacterCreatePage`  
@@ -130,6 +139,15 @@ The route registry is a living inventory of URLs, page components, layouts, and 
 **Layout:** `AppLayout`  
 **Access:** Admin  
 **Purpose:** View, edit, or create a character
+
+---
+
+### `/admin/characters/:id/approve`
+
+**Page:** `AdminApproveCharacterPage`  
+**Layout:** `AppLayout`  
+**Access:** Admin  
+**Purpose:** Review and approve a pending character
 
 ---
 

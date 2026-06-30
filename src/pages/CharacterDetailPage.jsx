@@ -1,3 +1,5 @@
+import CharacterSheet from '../components/CharacterSheet'
+
 export default function CharacterDetailPage() {
-  return <h1>CharacterDetailPage</h1>
+  return <CharacterSheet mode="player" />
 }

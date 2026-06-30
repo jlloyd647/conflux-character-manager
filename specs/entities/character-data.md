@@ -34,6 +34,8 @@ type Player = {
   xpSpent: int;
   playerID: int;
   bloodlineID: int;
+  approved: boolean;
+  backstory: string;
   createdAt: string;
 };
 ```
@@ -51,6 +53,8 @@ type Player = {
 | xpSpent | Running total of XP spent on stats, skills, and talents |
 | playerID | Connects a character to a player |
 | bloodlineID | Numeric identifier for a characters bloodline |
+| approved | Whether the character has been approved by an admin |
+| backstory | Character backstory text |
 | createdAt | Record creation timestamp |
 
 ---
@@ -81,6 +85,8 @@ created_at: datetime
 
 - xp | xp
 - xpSpent | xpSpent (sourced from `character_stats.xp_spent`)
+- approved | approved
+- backstory | backstory
 
 ---
 
@@ -94,6 +100,8 @@ created_at: datetime
 ## Feature Updates
 
 1 - [x] Add new fields: XP Spent
+2 - [x] Add new field: Approved (boolean)
+3 - [x] Add new field: Backstory (text)
 
 ---
 

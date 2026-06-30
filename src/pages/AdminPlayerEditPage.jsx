@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import EditableField from '../components/EditableField'
 import { useAuth } from '../hooks/useAuth'
+import { useRowStatusName } from '../hooks/useRowStatusName'
 import {
   createNewPlayer,
   getPlayerByID,
@@ -26,14 +27,6 @@ function formatFieldValue(value) {
   return String(value)
 }
 
-function formatLabel(value) {
-  if (!value) {
-    return '—'
-  }
-
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
 function ReadOnlyField({ label, value }) {
   return (
     <div className="dashboard-profile-field">
@@ -53,6 +46,7 @@ export default function AdminPlayerEditPage() {
   const [loading, setLoading] = useState(!isCreateMode)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const playerStatusName = useRowStatusName(player?.status)
 
   useEffect(() => {
     if (authLoading || isCreateMode) {
@@ -230,7 +224,7 @@ export default function AdminPlayerEditPage() {
                 />
               </div>
               {!isCreateMode && player?.status ? (
-                <ReadOnlyField label="Status" value={formatLabel(player.status)} />
+                <ReadOnlyField label="Status" value={playerStatusName} />
               ) : null}
               {!isCreateMode && player?.createdAt ? (
                 <ReadOnlyField

@@ -52,7 +52,7 @@ function getCellValue(row, column, fallback) {
   }
 
   if (column.format) {
-    const formatted = column.format(value)
+    const formatted = column.format(value, row)
 
     if (formatted === null || formatted === undefined || formatted === '') {
       return fallback
