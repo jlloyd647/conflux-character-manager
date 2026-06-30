@@ -3,7 +3,7 @@ import {
   findProgressionBracketForDecrease,
   findProgressionBracketForIncrease,
 } from './statCalculation'
-import { getStatIdForCharacterStat, getStatProgressionIncrement } from './statProgression'
+import { getStatIdForCharacterStat, getStatProgressionIncrement, calculateCharacterStatXpSpent } from './statProgression'
 
 /** @typedef {import('../services/statProgressionService').StatProgression} StatProgression */
 /** @typedef {import('../services/statDefinitionService').Stat} Stat */
@@ -175,6 +175,61 @@ function calculateRankFromBucketIncrements(bucketValues, baseValue, progressions
   }
 
   return rank
+}
+
+/**
+ * @param {number | null | undefined} currentValue
+ * @param {number | null | undefined} baseValue
+ * @param {StatProgression[]} progressions
+ */
+function calculateRankFromPageStat(currentValue, baseValue, progressions) {
+  const target = toNumericStatValue(currentValue)
+  let current = toNumericStatValue(baseValue)
+  let rank = 0
+
+  while (current < target) {
+    if (rank >= MAX_RANK_STEPS) {
+      break
+    }
+
+    current += getStatProgressionIncrement(current, progressions, 'increase')
+    rank += 1
+  }
+
+  return rank
+}
+
+/**
+ * @param {Partial<Record<string, number | null | undefined>>} pageStats
+ * @param {Record<string, unknown> | null | undefined} bloodline
+ * @param {StatProgression[]} statProgressions
+ * @param {Stat[]} stats
+ * @returns {number}
+ */
+export function calculateCharacterStatsXpSpentFromPageStats(
+  pageStats,
+  bloodline,
+  statProgressions,
+  stats,
+) {
+  let total = 0
+
+  for (const statKey of CHARACTER_STAT_PAGE_KEYS) {
+    const minKey = BLOODLINE_MIN_KEYS[statKey]
+    const baseValue = toNumericStatValue(bloodline?.[minKey])
+    const progressions = getProgressionsForStat(statKey, statProgressions, stats)
+    const rank = calculateRankFromPageStat(pageStats?.[statKey], baseValue, progressions)
+
+    total += calculateCharacterStatXpSpent(
+      statKey,
+      rank,
+      baseValue,
+      statProgressions,
+      stats,
+    )
+  }
+
+  return total
 }
 
 /**

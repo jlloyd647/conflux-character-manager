@@ -1,6 +1,14 @@
 import { supabase } from './supabaseClient'
 
-const TALENT_COLUMNS = ['talent_id', 'name', 'description', 'level', 'xp_cost', 'bloodline_id'].join(', ')
+const TALENT_COLUMNS = [
+  'talent_id',
+  'name',
+  'description',
+  'level',
+  'xp_cost',
+  'bloodline_id',
+  'prereq_id',
+].join(', ')
 
 /**
  * @typedef {{
@@ -10,6 +18,7 @@ const TALENT_COLUMNS = ['talent_id', 'name', 'description', 'level', 'xp_cost', 
  *   talentLevel: number | null,
  *   talentXPCost: number | null,
  *   talentBloodlineID: number,
+ *   prereqID: number | null,
  * }} Talent
  */
 
@@ -37,6 +46,7 @@ function mapTalentRow(row) {
     talentLevel: mapNumericField(row.level),
     talentXPCost: mapNumericField(row.xp_cost),
     talentBloodlineID: row.bloodline_id ?? 0,
+    prereqID: row.prereq_id ?? null,
   }
 }
 

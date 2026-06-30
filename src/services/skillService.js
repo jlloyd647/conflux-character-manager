@@ -9,6 +9,8 @@ const SKILL_COLUMNS = [
   'cost_xp',
   'prereq_skill_id',
   'prereq_id',
+  'skill_type_id',
+  'rank',
 ].join(', ')
 
 /**
@@ -21,8 +23,21 @@ const SKILL_COLUMNS = [
  *   costXP: number | null,
  *   prereqSkillID: number | null,
  *   prereqID: number | null,
+ *   skillTypeID: number | null,
+ *   skillRank: number | null,
  * }} Skill
  */
+
+/** @param {unknown} value */
+function mapNumericField(value) {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  const parsed = Number(value)
+
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 /** @param {Record<string, unknown> | null} row */
 function mapSkillRow(row) {
@@ -39,6 +54,8 @@ function mapSkillRow(row) {
     costXP: row.cost_xp ?? null,
     prereqSkillID: row.prereq_skill_id ?? null,
     prereqID: row.prereq_id ?? null,
+    skillTypeID: mapNumericField(row.skill_type_id),
+    skillRank: mapNumericField(row.rank),
   }
 }
 

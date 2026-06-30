@@ -40,3 +40,5 @@ bloodline_id: Determines which talents are displayed to and allowed to be chosen
 ## Data Location
 
 - talents database in supabase
+
+## Feature Updates

@@ -24,11 +24,12 @@ import {
 import { getCharacterSkillPrereq } from '../services/characterSkillPrereqService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
 import {
+  calculateCharacterStatsXpSpentFromPageStats,
   calculateDisplayedPageStats,
   createEmptyBucketValues,
 } from '../utils/characterStatBuckets'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
-import { checkSkillPurchase, checkTalentPurchase } from '../utils/skillBuy'
+import { checkSkillPurchase, checkSkillRemoval, checkTalentPurchase, checkTalentRemoval } from '../utils/skillBuy'
 import {
   calculateCharacterStatsXpCostChange,
   formatStatXpCostDelta,
@@ -185,6 +186,7 @@ export default function AdminCharacterEditPage() {
   const prereqsLoading = useReferenceDataStore((state) => state.prereqsLoading)
   const prereqsLoaded = useReferenceDataStore((state) => state.prereqsLoaded)
   const loadPrereqs = useReferenceDataStore((state) => state.loadPrereqs)
+  const allTalents = useReferenceDataStore((state) => state.talents)
   const allTalentsLoading = useReferenceDataStore((state) => state.talentsLoading)
   const talentsLoaded = useReferenceDataStore((state) => state.talentsLoaded)
   const referenceTalentsError = useReferenceDataStore((state) => state.talentsError)
@@ -502,32 +504,69 @@ export default function AdminCharacterEditPage() {
   ])
 
   useEffect(() => {
-    if (authLoading || !showSkillPicker || allSkillsLoading || skillsLoaded) {
+    if (
+      authLoading ||
+      (!showSkillPicker && !showSkillRemover) ||
+      allSkillsLoading ||
+      skillsLoaded
+    ) {
       return undefined
     }
 
     loadSkills().catch((loadError) => {
       setSkillsError(loadError.message)
     })
-  }, [authLoading, showSkillPicker, allSkillsLoading, skillsLoaded, loadSkills])
+  }, [
+    authLoading,
+    showSkillPicker,
+    showSkillRemover,
+    allSkillsLoading,
+    skillsLoaded,
+    loadSkills,
+  ])
 
   useEffect(() => {
-    if (authLoading || !showSkillPicker || prereqsLoading || prereqsLoaded) {
+    if (
+      authLoading ||
+      (!showSkillPicker && !showSkillRemover) ||
+      prereqsLoading ||
+      prereqsLoaded
+    ) {
       return undefined
     }
 
     loadPrereqs().catch((loadError) => {
       setSkillsError(loadError.message)
     })
-  }, [authLoading, showSkillPicker, prereqsLoading, prereqsLoaded, loadPrereqs])
+  }, [
+    authLoading,
+    showSkillPicker,
+    showSkillRemover,
+    prereqsLoading,
+    prereqsLoaded,
+    loadPrereqs,
+  ])
 
   useEffect(() => {
-    if (authLoading || !showTalentPicker || allTalentsLoading || talentsLoaded) {
+    if (
+      authLoading ||
+      (!showTalentPicker && !showTalentRemover && !showSkillRemover) ||
+      allTalentsLoading ||
+      talentsLoaded
+    ) {
       return undefined
     }
 
     loadTalents().catch(() => {})
-  }, [authLoading, showTalentPicker, allTalentsLoading, talentsLoaded, loadTalents])
+  }, [
+    authLoading,
+    showTalentPicker,
+    showTalentRemover,
+    showSkillRemover,
+    allTalentsLoading,
+    talentsLoaded,
+    loadTalents,
+  ])
 
   useEffect(() => {
     if (authLoading || !showTalentPicker || prereqsLoading || prereqsLoaded) {
@@ -538,6 +577,16 @@ export default function AdminCharacterEditPage() {
       setTalentsError(loadError.message)
     })
   }, [authLoading, showTalentPicker, prereqsLoading, prereqsLoaded, loadPrereqs])
+
+  useEffect(() => {
+    if (authLoading || !showTalentRemover || prereqsLoading || prereqsLoaded) {
+      return undefined
+    }
+
+    loadPrereqs().catch((loadError) => {
+      setTalentsError(loadError.message)
+    })
+  }, [authLoading, showTalentRemover, prereqsLoading, prereqsLoaded, loadPrereqs])
 
   async function handleAddSkill(row) {
     if (!character?.characterId || addingSkill) {
@@ -622,6 +671,26 @@ export default function AdminCharacterEditPage() {
 
     if (Number.isNaN(skillId)) {
       setSkillsError('Invalid skill id')
+      return
+    }
+
+    if (skillPrereqLoading) {
+      setSkillsError('Loading skill prerequisites…')
+      return
+    }
+
+    const removalCheck = checkSkillRemoval(
+      characterSkills,
+      skillId,
+      characterTalents,
+      characterSkillPrereq,
+      prereqs,
+      allSkills,
+      allTalents,
+    )
+
+    if (!removalCheck.valid) {
+      setSkillsError(removalCheck.message)
       return
     }
 
@@ -710,6 +779,9 @@ export default function AdminCharacterEditPage() {
     try {
       const { characterTalent, characterStats: updatedCharacterStats } =
         await addCharacterTalent(character.characterId, talentId)
+      const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
+        character.characterId,
+      )
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
@@ -721,6 +793,11 @@ export default function AdminCharacterEditPage() {
         talents: [...previous.talents, characterTalent],
         error: '',
       }))
+      setCharacterSkillPrereqState({
+        characterId: character.characterId,
+        prereq: updatedCharacterSkillPrereq,
+        error: '',
+      })
       setShowTalentPicker(false)
     } catch (addError) {
       setTalentsError(addError.message)
@@ -741,17 +818,55 @@ export default function AdminCharacterEditPage() {
       return
     }
 
+    const talentData = getTalentByTalentID(talentId)
+
+    if (!talentData) {
+      setTalentsError('Talent not found.')
+      return
+    }
+
+    if (skillPrereqLoading) {
+      setTalentsError('Loading talent prerequisites…')
+      return
+    }
+
+    const removalCheck = checkTalentRemoval(
+      characterSkills,
+      characterTalents,
+      characterSkillPrereq,
+      talentData,
+      prereqs,
+      allSkills,
+      allTalents,
+    )
+
+    if (!removalCheck.valid) {
+      setTalentsError(removalCheck.message)
+      return
+    }
+
     setRemovingTalent(true)
     setTalentsError('')
 
     try {
-      const updatedCharacterStats = await removeCharacterTalent(character.characterId, talentId)
+      const updatedCharacterStats = await removeCharacterTalent(
+        character.characterId,
+        talentId,
+      )
+      const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
+        character.characterId,
+      )
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
         stats: updatedCharacterStats,
         error: '',
       }))
+      setCharacterSkillPrereqState({
+        characterId: character.characterId,
+        prereq: updatedCharacterSkillPrereq,
+        error: '',
+      })
       setCharacterTalentsState((previous) => {
         const talents = previous.talents.filter((entry) => entry.talentId !== talentId)
 
@@ -818,6 +933,9 @@ export default function AdminCharacterEditPage() {
       character.id,
       bloodlineId,
     )
+    const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
+      updatedCharacter.characterId,
+    )
 
     setCharacter(updatedCharacter)
     setCharacterStatsState((previous) => ({
@@ -826,6 +944,11 @@ export default function AdminCharacterEditPage() {
       stats: characterStats,
       error: '',
     }))
+    setCharacterSkillPrereqState({
+      characterId: updatedCharacter.characterId,
+      prereq: updatedCharacterSkillPrereq,
+      error: '',
+    })
     setCharacterTalentsState((previous) => ({
       ...previous,
       characterId: updatedCharacter.characterId,
@@ -918,6 +1041,12 @@ export default function AdminCharacterEditPage() {
     )
   }, [activeCharacter?.bloodlineId, characterTalents, getTalentsByBloodlineID])
 
+  const availableSkillOptions = useMemo(() => {
+    const assignedSkillIds = new Set(characterSkills.map((skill) => skill.skillId))
+
+    return allSkills.filter((skill) => !assignedSkillIds.has(skill.skillID))
+  }, [allSkills, characterSkills])
+
   const bloodlineOptions = useMemo(
     () =>
       bloodlines.map((bloodline) => ({
@@ -1006,6 +1135,23 @@ export default function AdminCharacterEditPage() {
       return 0
     }
   }, [statsEditing, statsEditBase, draftStats, statProgressions, stats])
+
+  const displayedStatXpSpent = useMemo(() => {
+    if (!activeBloodline) {
+      return 0
+    }
+
+    try {
+      return calculateCharacterStatsXpSpentFromPageStats(
+        currentStats,
+        activeBloodline,
+        statProgressions,
+        stats,
+      )
+    } catch {
+      return 0
+    }
+  }, [currentStats, activeBloodline, statProgressions, stats])
 
   function startStatsEditing() {
     setStatsEditBase(currentStats)
@@ -1313,7 +1459,7 @@ export default function AdminCharacterEditPage() {
                 <div className="dashboard-profile-field">
                   <EditableField
                     label="Stat XP Spent"
-                    value={formatFieldValue(characterStats?.statXPSpent ?? 0)}
+                    value={formatFieldValue(displayedStatXpSpent)}
                     inputType="number"
                     disabled
                   />
@@ -1381,9 +1527,9 @@ export default function AdminCharacterEditPage() {
                 </p>
               ) : (
                 <DataTable
-                  data={allSkills}
+                  data={availableSkillOptions}
                   columns={skillPickerColumns}
-                  emptyMessage="No skills found."
+                  emptyMessage="No skills available to add."
                   onRowClick={handleAddSkill}
                 />
               )

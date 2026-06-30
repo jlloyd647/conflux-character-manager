@@ -43,7 +43,28 @@ This will be displayed in a form view and use the editableField component to dis
 
 If any of these checks fail, a message should be displayed.
 
+26 - [x] When a user adds a talent - We need to check for the following:
+
+* If the player has enough XP to buy the talent
+* If the talent has a rank prereq
+
+If any of these checks fail, a message should be displayed.
+
+27 - [x] - When removing a talent or skill, we need to check for the following:
+
+* is that talent or skill a prereq for a skill that the character currently has
+
+If this check fails, a message should be displayed and the skill or talent should not be removed.
+
+28 - [x] - When removing a talent or skill, we need to check for the following:
+
+* is that talent or skill a part of a rank or level that is required for a talent or skill to be added. If so, it can only be removed if the player_skill_prereq doesn't drop below the requirements for the prereq_id
+
+29 - [x] - Filter out the skills a character already has when adding a new skill.
+
 ## Bug Fixes
+
+1 - [x] - Stat XP Spent is showing all XP spent rather then just XP that was spent on stat increases.
 
 ## Template for copy paste to agent - Ignore this section
 
