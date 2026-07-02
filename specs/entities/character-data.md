@@ -37,6 +37,7 @@ type Player = {
   approved: boolean;
   backstory: string;
   createdAt: string;
+  status: int2;
 };
 ```
 
@@ -56,6 +57,7 @@ type Player = {
 | approved | Whether the character has been approved by an admin |
 | backstory | Character backstory text |
 | createdAt | Record creation timestamp |
+| status | Int value to mark the status of the character |
 
 ---
 

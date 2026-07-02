@@ -62,6 +62,8 @@ If this check fails, a message should be displayed and the skill or talent shoul
 
 29 - [x] - Filter out the skills a character already has when adding a new skill.
 
+
+
 ## Bug Fixes
 
 1 - [x] - Stat XP Spent is showing all XP spent rather then just XP that was spent on stat increases.
