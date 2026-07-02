@@ -7,7 +7,10 @@ import {
   pageStatsToBucketPayload,
   pageStatsToInitialBucketPayload,
 } from '../utils/characterStatBuckets'
+import { ROW_STATUS } from '../constants/rowStatus'
 import { supabase } from './supabaseClient'
+
+export const CHARACTER_STATUS = ROW_STATUS
 
 const CHARACTER_COLUMNS = [
   'id',
@@ -20,6 +23,7 @@ const CHARACTER_COLUMNS = [
   'approved',
   'backstory',
   'npl_contact_method',
+  'status',
   'created_at',
 ].join(', ')
 
@@ -33,6 +37,7 @@ const CHARACTER_FIELD_TO_COLUMN = {
   approved: 'approved',
   backstory: 'backstory',
   nplContactMethod: 'npl_contact_method',
+  status: 'status',
 }
 
 const CHARACTER_STAT_COLUMNS = [
@@ -74,6 +79,7 @@ const CHARACTER_TALENT_COLUMNS = [
  *   approved: boolean,
  *   backstory: string,
  *   nplContactMethod: number | null,
+ *   status: number | null,
  *   createdAt: string,
  * }} Character
  */
@@ -127,6 +133,7 @@ function mapCharacterRow(row) {
     backstory: row.backstory ?? '',
     nplContactMethod:
       row.npl_contact_method != null ? Number(row.npl_contact_method) : null,
+    status: row.status != null ? Number(row.status) : null,
     createdAt: row.created_at,
   }
 }
@@ -604,6 +611,7 @@ export async function createCharacter({
       approved: false,
       backstory,
       npl_contact_method: nplContactMethod,
+      status: ROW_STATUS.NEW,
     })
     .select(CHARACTER_COLUMNS)
     .single()
@@ -653,6 +661,7 @@ export async function approveCharacter(characterId, xp) {
     .update({
       approved: true,
       xp,
+      status: ROW_STATUS.ACTIVE,
     })
     .eq('id', characterId)
     .select(CHARACTER_COLUMNS)

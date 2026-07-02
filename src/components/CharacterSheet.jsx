@@ -5,12 +5,14 @@ import DataTable from './DataTable'
 import DropdownField from './DropdownField'
 import EditableField from './EditableField'
 import { useAuth } from '../hooks/useAuth'
+import { useRowStatusName } from '../hooks/useRowStatusName'
 import { getPlayerByUserId } from '../services/playerService'
 import {
   addCharacterSkills,
   addCharacterTalent,
   applyCharacterXpSpentDelta,
   changeCharacterBloodline,
+  CHARACTER_STATUS,
   createCharacter,
   getCharacterById,
   getCharacterSkills,
@@ -22,6 +24,16 @@ import {
   updateCharacterColumnById,
   updateCharacterStatsAndXpSpent,
 } from '../services/characterService'
+import {
+  addCharacterLore,
+  getCharacterLores,
+  removeCharacterLore,
+} from '../services/characterLoreService'
+import {
+  addCharacterFormat,
+  getCharacterFormats,
+  removeCharacterFormat,
+} from '../services/characterFormatService'
 import { getCharacterSkillPrereq } from '../services/characterSkillPrereqService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
 import {
@@ -37,6 +49,16 @@ import {
   getCharacterStatDecreaseStep,
   getCharacterStatIncreaseStep,
 } from '../utils/statProgression'
+import {
+  canPurchaseMoreLores,
+  EDUCATION_LORE_REQUIRED_MESSAGE,
+  hasEducationLoreAccess,
+} from '../utils/lorePurchase'
+import {
+  canPurchaseMoreFormats,
+  hasSpecializationFormatAccess,
+  SPECIALIZATION_FORMAT_REQUIRED_MESSAGE,
+} from '../utils/formatPurchase'
 
 const EMPTY_CHARACTER = {
   characterName: '',
@@ -47,12 +69,21 @@ const EMPTY_CHARACTER = {
 }
 
 const skillPickerColumns = [
-  { key: 'skillID', header: 'Skill ID' },
   { key: 'skillName', header: 'Name' },
   { key: 'skillDescription', header: 'Description' },
   { key: 'costXP', header: 'XP Cost' },
   { key: 'costWill', header: 'Will Cost' },
   { key: 'costMind', header: 'Mind Cost' },
+]
+
+const SKILL_TYPE_FILTER_OPTIONS = [
+  { id: 1, label: 'Melee' },
+  { id: 2, label: 'Ranged' },
+  { id: 3, label: 'Magic' },
+  { id: 4, label: 'Crafting' },
+  { id: 5, label: 'Defensive' },
+  { id: 6, label: 'General' },
+  { id: 7, label: 'Social' },
 ]
 
 const talentPickerColumns = [
@@ -62,6 +93,10 @@ const talentPickerColumns = [
   { key: 'talentLevel', header: 'Level' },
   { key: 'talentXPCost', header: 'XP Cost' },
 ]
+
+const lorePickerColumns = [{ key: 'loreName', header: 'Lore Name' }]
+
+const formatPickerColumns = [{ key: 'formatName', header: 'Format Name' }]
 
 const CHARACTER_STAT_FIELDS = [
   { key: 'vitality', label: 'Vitality', minKey: 'minVitality', maxKey: 'maxVitality' },
@@ -111,6 +146,32 @@ function formatKingroupValue(kingroupId) {
   }
 
   return String(kingroupId)
+}
+
+function matchesSkillNameFilter(name, filter) {
+  const trimmedFilter = filter.trim()
+
+  if (!trimmedFilter) {
+    return true
+  }
+
+  return String(name ?? '')
+    .toLowerCase()
+    .includes(trimmedFilter.toLowerCase())
+}
+
+function matchesSkillTypeFilter(skillTypeID, selectedTypes) {
+  if (!selectedTypes.size) {
+    return true
+  }
+
+  const normalizedTypeId = Number(skillTypeID)
+
+  if (!Number.isFinite(normalizedTypeId)) {
+    return false
+  }
+
+  return selectedTypes.has(normalizedTypeId)
 }
 
 function toStatNumber(value, fallback = null) {
@@ -173,6 +234,16 @@ export default function CharacterSheet({ mode = 'admin' }) {
     talents: [],
     error: '',
   })
+  const [characterLoresState, setCharacterLoresState] = useState({
+    characterId: null,
+    lores: [],
+    error: '',
+  })
+  const [characterFormatsState, setCharacterFormatsState] = useState({
+    characterId: null,
+    formats: [],
+    error: '',
+  })
   const [characterStatsState, setCharacterStatsState] = useState({
     characterId: null,
     stats: null,
@@ -182,6 +253,10 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const [showSkillRemover, setShowSkillRemover] = useState(false)
   const [showTalentPicker, setShowTalentPicker] = useState(false)
   const [showTalentRemover, setShowTalentRemover] = useState(false)
+  const [showLorePicker, setShowLorePicker] = useState(false)
+  const [showLoreRemover, setShowLoreRemover] = useState(false)
+  const [showFormatPicker, setShowFormatPicker] = useState(false)
+  const [showFormatRemover, setShowFormatRemover] = useState(false)
   const allSkills = useReferenceDataStore((state) => state.skills)
   const allSkillsLoading = useReferenceDataStore((state) => state.skillsLoading)
   const skillsLoaded = useReferenceDataStore((state) => state.skillsLoaded)
@@ -198,6 +273,18 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const loadTalents = useReferenceDataStore((state) => state.loadTalents)
   const getTalentByTalentID = useReferenceDataStore((state) => state.getTalentByTalentID)
   const getTalentsByBloodlineID = useReferenceDataStore((state) => state.getTalentsByBloodlineID)
+  const allLores = useReferenceDataStore((state) => state.lores)
+  const allLoresLoading = useReferenceDataStore((state) => state.loresLoading)
+  const loresLoaded = useReferenceDataStore((state) => state.loresLoaded)
+  const referenceLoresError = useReferenceDataStore((state) => state.loresError)
+  const loadLores = useReferenceDataStore((state) => state.loadLores)
+  const getLoreByLoreID = useReferenceDataStore((state) => state.getLoreByLoreID)
+  const allFormats = useReferenceDataStore((state) => state.formats)
+  const allFormatsLoading = useReferenceDataStore((state) => state.formatsLoading)
+  const formatsLoaded = useReferenceDataStore((state) => state.formatsLoaded)
+  const referenceFormatsError = useReferenceDataStore((state) => state.formatsError)
+  const loadFormats = useReferenceDataStore((state) => state.loadFormats)
+  const getFormatByFormatID = useReferenceDataStore((state) => state.getFormatByFormatID)
   const bloodlines = useReferenceDataStore((state) => state.bloodlines)
   const loadBloodlines = useReferenceDataStore((state) => state.loadBloodlines)
   const kingroups = useReferenceDataStore((state) => state.kingroups)
@@ -215,11 +302,17 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const [removingSkill, setRemovingSkill] = useState(false)
   const [addingTalent, setAddingTalent] = useState(false)
   const [removingTalent, setRemovingTalent] = useState(false)
+  const [addingLore, setAddingLore] = useState(false)
+  const [removingLore, setRemovingLore] = useState(false)
+  const [addingFormat, setAddingFormat] = useState(false)
+  const [removingFormat, setRemovingFormat] = useState(false)
   const [statsEditing, setStatsEditing] = useState(false)
   const [statsEditBase, setStatsEditBase] = useState(EMPTY_STATS)
   const [draftStats, setDraftStats] = useState(EMPTY_STATS)
   const [savingStats, setSavingStats] = useState(false)
   const [statsError, setStatsError] = useState('')
+  const [skillNameFilter, setSkillNameFilter] = useState('')
+  const [skillTypeFilters, setSkillTypeFilters] = useState(() => new Set())
   const statProgressions = useReferenceDataStore((state) => state.statProgressions)
   const stats = useReferenceDataStore((state) => state.stats)
   const loadStatProgressions = useReferenceDataStore((state) => state.loadStatProgressions)
@@ -386,6 +479,72 @@ export default function CharacterSheet({ mode = 'admin' }) {
   }, [authLoading, isCreateMode, character?.characterId])
 
   useEffect(() => {
+    if (authLoading || isCreateMode || !isPlayerMode || !character?.characterId) {
+      return undefined
+    }
+
+    const characterId = character.characterId
+    let active = true
+
+    getCharacterLores(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterLoresState({
+            characterId,
+            lores: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterLoresState({
+            characterId,
+            lores: [],
+            error: loadError.message,
+          })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [authLoading, isCreateMode, isPlayerMode, character?.characterId])
+
+  useEffect(() => {
+    if (authLoading || isCreateMode || !isPlayerMode || !character?.characterId) {
+      return undefined
+    }
+
+    const characterId = character.characterId
+    let active = true
+
+    getCharacterFormats(characterId)
+      .then((data) => {
+        if (active) {
+          setCharacterFormatsState({
+            characterId,
+            formats: data,
+            error: '',
+          })
+        }
+      })
+      .catch((loadError) => {
+        if (active) {
+          setCharacterFormatsState({
+            characterId,
+            formats: [],
+            error: loadError.message,
+          })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [authLoading, isCreateMode, isPlayerMode, character?.characterId])
+
+  useEffect(() => {
     if (authLoading || isCreateMode || !character?.characterId) {
       return undefined
     }
@@ -444,6 +603,26 @@ export default function CharacterSheet({ mode = 'admin' }) {
     !isCreateMode &&
     characterTalentsState.characterId !== character?.characterId
   const talentsError = characterTalentsState.error
+  const characterLores =
+    characterLoresState.characterId === character?.characterId
+      ? characterLoresState.lores
+      : []
+  const loresLoading =
+    Boolean(character?.characterId) &&
+    isPlayerMode &&
+    !isCreateMode &&
+    characterLoresState.characterId !== character?.characterId
+  const loresError = characterLoresState.error
+  const characterFormats =
+    characterFormatsState.characterId === character?.characterId
+      ? characterFormatsState.formats
+      : []
+  const formatsLoading =
+    Boolean(character?.characterId) &&
+    isPlayerMode &&
+    !isCreateMode &&
+    characterFormatsState.characterId !== character?.characterId
+  const formatsError = characterFormatsState.error
   const characterStats =
     characterStatsState.characterId === character?.characterId
       ? characterStatsState.stats
@@ -465,6 +644,36 @@ export default function CharacterSheet({ mode = 'admin' }) {
       ...previous,
       error: message,
     }))
+  }
+
+  function setLoresError(message) {
+    setCharacterLoresState((previous) => ({
+      ...previous,
+      error: message,
+    }))
+  }
+
+  function setFormatsError(message) {
+    setCharacterFormatsState((previous) => ({
+      ...previous,
+      error: message,
+    }))
+  }
+
+  function clearSkillFilters() {
+    setSkillNameFilter('')
+    setSkillTypeFilters(new Set())
+  }
+
+  function cancelAllAddRemoveModes() {
+    setShowSkillPicker(false)
+    setShowSkillRemover(false)
+    setShowTalentPicker(false)
+    setShowTalentRemover(false)
+    setShowLorePicker(false)
+    setShowLoreRemover(false)
+    setShowFormatPicker(false)
+    setShowFormatRemover(false)
   }
 
   useEffect(() => {
@@ -631,6 +840,54 @@ export default function CharacterSheet({ mode = 'admin' }) {
     })
   }, [authLoading, showTalentRemover, prereqsLoading, prereqsLoaded, loadPrereqs])
 
+  useEffect(() => {
+    if (
+      authLoading ||
+      !isPlayerMode ||
+      (!showLorePicker && !showLoreRemover) ||
+      allLoresLoading ||
+      loresLoaded
+    ) {
+      return undefined
+    }
+
+    loadLores().catch((loadError) => {
+      setLoresError(loadError.message)
+    })
+  }, [
+    authLoading,
+    isPlayerMode,
+    showLorePicker,
+    showLoreRemover,
+    allLoresLoading,
+    loresLoaded,
+    loadLores,
+  ])
+
+  useEffect(() => {
+    if (
+      authLoading ||
+      !isPlayerMode ||
+      (!showFormatPicker && !showFormatRemover) ||
+      allFormatsLoading ||
+      formatsLoaded
+    ) {
+      return undefined
+    }
+
+    loadFormats().catch((loadError) => {
+      setFormatsError(loadError.message)
+    })
+  }, [
+    authLoading,
+    isPlayerMode,
+    showFormatPicker,
+    showFormatRemover,
+    allFormatsLoading,
+    formatsLoaded,
+    loadFormats,
+  ])
+
   async function handleAddSkill(row) {
     if (!character?.characterId || addingSkill) {
       return
@@ -698,6 +955,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
         error: '',
       })
       setShowSkillPicker(false)
+      clearSkillFilters()
     } catch (addError) {
       setSkillsError(addError.message)
     } finally {
@@ -767,6 +1025,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
           error: '',
         }
       })
+      clearSkillFilters()
     } catch (removeError) {
       setSkillsError(removeError.message)
     } finally {
@@ -930,6 +1189,170 @@ export default function CharacterSheet({ mode = 'admin' }) {
     }
   }
 
+  async function handleAddLore(row) {
+    if (!character?.characterId || addingLore) {
+      return
+    }
+
+    const loreId = Number(row.loreID)
+
+    if (Number.isNaN(loreId)) {
+      setLoresError('Invalid lore id')
+      return
+    }
+
+    if (characterLores.some((lore) => lore.loreId === loreId)) {
+      setLoresError('Lore is already assigned to this character.')
+      return
+    }
+
+    if (!hasEducationLoreAccess(characterSkills)) {
+      setLoresError(EDUCATION_LORE_REQUIRED_MESSAGE)
+      return
+    }
+
+    if (!canPurchaseMoreLores(characterSkills, characterLores)) {
+      setLoresError('This character has reached their lore limit.')
+      return
+    }
+
+    setAddingLore(true)
+    setLoresError('')
+
+    try {
+      const characterLore = await addCharacterLore(character.characterId, loreId)
+      setCharacterLoresState((previous) => ({
+        ...previous,
+        lores: [...previous.lores, characterLore],
+        error: '',
+      }))
+      setShowLorePicker(false)
+    } catch (addError) {
+      setLoresError(addError.message)
+    } finally {
+      setAddingLore(false)
+    }
+  }
+
+  async function handleRemoveLore(lore) {
+    if (!character?.characterId || removingLore) {
+      return
+    }
+
+    const loreId = Number(lore.loreId)
+
+    if (Number.isNaN(loreId)) {
+      setLoresError('Invalid lore id')
+      return
+    }
+
+    setRemovingLore(true)
+    setLoresError('')
+
+    try {
+      await removeCharacterLore(character.characterId, loreId)
+      setCharacterLoresState((previous) => {
+        const lores = previous.lores.filter((entry) => entry.loreId !== loreId)
+
+        if (lores.length === 0) {
+          setShowLoreRemover(false)
+        }
+
+        return {
+          ...previous,
+          lores,
+          error: '',
+        }
+      })
+    } catch (removeError) {
+      setLoresError(removeError.message)
+    } finally {
+      setRemovingLore(false)
+    }
+  }
+
+  async function handleAddFormat(row) {
+    if (!character?.characterId || addingFormat) {
+      return
+    }
+
+    const formatId = Number(row.formatID)
+
+    if (Number.isNaN(formatId)) {
+      setFormatsError('Invalid format id')
+      return
+    }
+
+    if (characterFormats.some((format) => format.formatId === formatId)) {
+      setFormatsError('Format is already assigned to this character.')
+      return
+    }
+
+    if (!hasSpecializationFormatAccess(characterSkills)) {
+      setFormatsError(SPECIALIZATION_FORMAT_REQUIRED_MESSAGE)
+      return
+    }
+
+    if (!canPurchaseMoreFormats(characterSkills, characterFormats)) {
+      setFormatsError('This character has reached their format limit.')
+      return
+    }
+
+    setAddingFormat(true)
+    setFormatsError('')
+
+    try {
+      const characterFormat = await addCharacterFormat(character.characterId, formatId)
+      setCharacterFormatsState((previous) => ({
+        ...previous,
+        formats: [...previous.formats, characterFormat],
+        error: '',
+      }))
+      setShowFormatPicker(false)
+    } catch (addError) {
+      setFormatsError(addError.message)
+    } finally {
+      setAddingFormat(false)
+    }
+  }
+
+  async function handleRemoveFormat(format) {
+    if (!character?.characterId || removingFormat) {
+      return
+    }
+
+    const formatId = Number(format.formatId)
+
+    if (Number.isNaN(formatId)) {
+      setFormatsError('Invalid format id')
+      return
+    }
+
+    setRemovingFormat(true)
+    setFormatsError('')
+
+    try {
+      await removeCharacterFormat(character.characterId, formatId)
+      setCharacterFormatsState((previous) => {
+        const formats = previous.formats.filter((entry) => entry.formatId !== formatId)
+
+        if (formats.length === 0) {
+          setShowFormatRemover(false)
+        }
+
+        return {
+          ...previous,
+          formats,
+          error: '',
+        }
+      })
+    } catch (removeError) {
+      setFormatsError(removeError.message)
+    } finally {
+      setRemovingFormat(false)
+    }
+  }
+
   function updateCharacterField(field, parser = (value) => value) {
     return async (nextValue) => {
       const parsed = parser(nextValue)
@@ -1066,8 +1489,30 @@ export default function CharacterSheet({ mode = 'admin' }) {
     return getSkillBySkillID(skillId)?.skillName ?? String(skillId)
   }
 
+  function toggleSkillTypeFilter(typeId) {
+    setSkillTypeFilters((previous) => {
+      const next = new Set(previous)
+
+      if (next.has(typeId)) {
+        next.delete(typeId)
+      } else {
+        next.add(typeId)
+      }
+
+      return next
+    })
+  }
+
   function getTalentDisplayName(talentId) {
     return getTalentByTalentID(talentId)?.talentName ?? String(talentId)
+  }
+
+  function getLoreDisplayName(loreId) {
+    return getLoreByLoreID(loreId)?.loreName ?? String(loreId)
+  }
+
+  function getFormatDisplayName(formatId) {
+    return getFormatByFormatID(formatId)?.formatName ?? String(formatId)
   }
 
   const bloodlineTalentOptions = useMemo(() => {
@@ -1089,6 +1534,68 @@ export default function CharacterSheet({ mode = 'admin' }) {
 
     return allSkills.filter((skill) => !assignedSkillIds.has(skill.skillID))
   }, [allSkills, characterSkills])
+
+  const availableLoreOptions = useMemo(() => {
+    const assignedLoreIds = new Set(characterLores.map((lore) => lore.loreId))
+
+    return allLores.filter((lore) => !assignedLoreIds.has(lore.loreID))
+  }, [allLores, characterLores])
+
+  const availableFormatOptions = useMemo(() => {
+    const assignedFormatIds = new Set(characterFormats.map((format) => format.formatId))
+
+    return allFormats.filter((format) => !assignedFormatIds.has(format.formatID))
+  }, [allFormats, characterFormats])
+
+  const characterHasSpecializationFormatAccess = useMemo(
+    () => hasSpecializationFormatAccess(characterSkills),
+    [characterSkills],
+  )
+
+  const canAddMoreFormats = useMemo(
+    () => canPurchaseMoreFormats(characterSkills, characterFormats),
+    [characterSkills, characterFormats],
+  )
+
+  const characterHasEducationLoreAccess = useMemo(
+    () => hasEducationLoreAccess(characterSkills),
+    [characterSkills],
+  )
+
+  const canAddMoreLores = useMemo(
+    () => canPurchaseMoreLores(characterSkills, characterLores),
+    [characterSkills, characterLores],
+  )
+
+  const displayedCharacterSkills = useMemo(() => {
+    if (!isPlayerMode) {
+      return characterSkills
+    }
+
+    return characterSkills.filter((skill) => {
+      const skillData = getSkillBySkillID(skill.skillId)
+
+      return (
+        matchesSkillNameFilter(skillData?.skillName ?? skill.skillId, skillNameFilter) &&
+        matchesSkillTypeFilter(skillData?.skillTypeID, skillTypeFilters)
+      )
+    })
+  }, [characterSkills, skillNameFilter, skillTypeFilters, isPlayerMode, getSkillBySkillID])
+
+  const displayedAvailableSkillOptions = useMemo(() => {
+    if (!isPlayerMode) {
+      return availableSkillOptions
+    }
+
+    return availableSkillOptions.filter(
+      (skill) =>
+        matchesSkillNameFilter(skill.skillName, skillNameFilter) &&
+        matchesSkillTypeFilter(skill.skillTypeID, skillTypeFilters),
+    )
+  }, [availableSkillOptions, skillNameFilter, skillTypeFilters, isPlayerMode])
+
+  const skillFilterActive =
+    isPlayerMode && (Boolean(skillNameFilter.trim()) || skillTypeFilters.size > 0)
 
   const bloodlineOptions = useMemo(
     () =>
@@ -1312,6 +1819,19 @@ export default function CharacterSheet({ mode = 'admin' }) {
     return getKingroupByKingroupID(character.kingroupId)?.kingroupName ?? '—'
   }, [character?.kingroupId, getKingroupByKingroupID])
 
+  const characterStatusName = useRowStatusName(character?.status)
+
+  const canReduceCharacterBuild = useMemo(() => {
+    if (!isPlayerMode) {
+      return true
+    }
+
+    return (
+      character?.status === CHARACTER_STATUS.NEW ||
+      character?.status === CHARACTER_STATUS.REROLL
+    )
+  }, [isPlayerMode, character?.status])
+
   const accessDenied =
     isPlayerMode &&
     !loading &&
@@ -1373,6 +1893,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
               />
               <ReadOnlyField label="Bloodline" value={bloodlineDisplayName} />
               <ReadOnlyField label="Kin Group" value={kingroupDisplayName} />
+              <ReadOnlyField label="Status" value={characterStatusName} />
               {character.createdAt ? (
                 <ReadOnlyField
                   label="Created"
@@ -1565,6 +2086,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
                         )
                       }
                       onChange={(value) => updateDraftStat(stat.key, value)}
+                      hideDecrease={!canReduceCharacterBuild}
                     />
                   </div>
                 ))}
@@ -1607,27 +2129,69 @@ export default function CharacterSheet({ mode = 'admin' }) {
                     type="button"
                     className="dashboard-action-link character-skills-action"
                     onClick={() => {
-                      setShowSkillRemover(false)
+                      cancelAllAddRemoveModes()
+                      clearSkillFilters()
                       setShowSkillPicker(true)
                     }}
                   >
                     Add Skill
                   </button>
-                  <button
-                    type="button"
-                    className="dashboard-action-link character-skills-action"
-                    onClick={() => {
-                      setShowSkillPicker(false)
-                      setShowSkillRemover(true)
-                    }}
-                  >
-                    Remove Skill
-                  </button>
+                  {canReduceCharacterBuild ? (
+                    <button
+                      type="button"
+                      className="dashboard-action-link character-skills-action"
+                      disabled={!canReduceCharacterBuild}
+                      onClick={() => {
+                        cancelAllAddRemoveModes()
+                        clearSkillFilters()
+                        setShowSkillRemover(true)
+                      }}
+                    >
+                      Remove Skill
+                    </button>
+                  ) : null}
                 </>
               )}
             </div>
           </div>
-          <div className="dashboard-card character-skills-card">
+          <div
+            className={`dashboard-card character-skills-card${
+              isPlayerMode ? ' character-skills-card--bounded' : ''
+            }`}
+          >
+            {isPlayerMode ? (
+              <div className="character-skills-filters">
+                <div className="character-skills-filter-field">
+                  <label htmlFor="character-skill-name-filter" className="dashboard-profile-label">
+                    Filter by name
+                  </label>
+                  <input
+                    id="character-skill-name-filter"
+                    type="search"
+                    className="character-skills-filter-input"
+                    value={skillNameFilter}
+                    onChange={(event) => setSkillNameFilter(event.target.value)}
+                    placeholder="Search skills…"
+                  />
+                </div>
+                <fieldset className="character-skills-filter-types">
+                  <legend className="dashboard-profile-label">Filter by skill type</legend>
+                  <div className="character-skills-filter-type-options">
+                    {SKILL_TYPE_FILTER_OPTIONS.map(({ id, label }) => (
+                      <label key={id} className="character-skills-filter-type-option">
+                        <input
+                          type="checkbox"
+                          checked={skillTypeFilters.has(id)}
+                          onChange={() => toggleSkillTypeFilter(id)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+            ) : null}
+            <div className={isPlayerMode ? 'character-skills-scroll-body' : undefined}>
             {skillsError ? (
               <p className="list-page-error" role="alert">
                 {skillsError}
@@ -1641,9 +2205,13 @@ export default function CharacterSheet({ mode = 'admin' }) {
                 </p>
               ) : (
                 <DataTable
-                  data={availableSkillOptions}
+                  data={displayedAvailableSkillOptions}
                   columns={skillPickerColumns}
-                  emptyMessage="No skills available to add."
+                  emptyMessage={
+                    skillFilterActive
+                      ? 'No skills match your filter.'
+                      : 'No skills available to add.'
+                  }
                   onRowClick={handleAddSkill}
                 />
               )
@@ -1657,22 +2225,28 @@ export default function CharacterSheet({ mode = 'admin' }) {
                   Loading skills…
                 </p>
               ) : characterSkills.length ? (
-                <div className="character-skills-list">
-                  <ul className="character-skills-items">
-                    {characterSkills.map((skill) => (
-                      <li key={`${skill.characterId}-${skill.skillId}`}>
-                        <button
-                          type="button"
-                          className="character-skills-item character-skills-item-button"
-                          disabled={removingSkill}
-                          onClick={() => handleRemoveSkill(skill)}
-                        >
-                          {getSkillDisplayName(skill.skillId)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                displayedCharacterSkills.length ? (
+                  <div className="character-skills-list">
+                    <ul className="character-skills-items">
+                      {displayedCharacterSkills.map((skill) => (
+                        <li key={`${skill.characterId}-${skill.skillId}`}>
+                          <button
+                            type="button"
+                            className="character-skills-item character-skills-item-button"
+                            disabled={removingSkill}
+                            onClick={() => handleRemoveSkill(skill)}
+                          >
+                            {getSkillDisplayName(skill.skillId)}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="character-skills-empty character-skills-status">
+                    No skills match your filter.
+                  </p>
+                )
               ) : (
                 <p className="character-skills-empty character-skills-status">
                   No skills to remove.
@@ -1685,18 +2259,296 @@ export default function CharacterSheet({ mode = 'admin' }) {
             ) : (
               <div className="character-skills-list">
                 {characterSkills.length ? (
+                  displayedCharacterSkills.length ? (
+                    <ul className="character-skills-items">
+                      {displayedCharacterSkills.map((skill) => (
+                        <li
+                          key={`${skill.characterId}-${skill.skillId}`}
+                          className="character-skills-item"
+                        >
+                          {getSkillDisplayName(skill.skillId)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="character-skills-empty">No skills match your filter.</p>
+                  )
+                ) : (
+                  <p className="character-skills-empty">No skills found.</p>
+                )}
+              </div>
+            )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {isPlayerMode &&
+      !authLoading &&
+      !loading &&
+      !isCreateMode &&
+      character &&
+      !accessDenied ? (
+        <section className="dashboard-section">
+          <div className="character-skills-header">
+            <h2 className="dashboard-section-title">Specialization Formats</h2>
+            <div className="character-skills-header-actions">
+              {showFormatPicker || showFormatRemover ? (
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={addingFormat || removingFormat}
+                  onClick={() => {
+                    setShowFormatPicker(false)
+                    setShowFormatRemover(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    disabled={
+                      !characterHasSpecializationFormatAccess ||
+                      !canAddMoreFormats ||
+                      skillsLoading ||
+                      formatsLoading
+                    }
+                    onClick={() => {
+                      cancelAllAddRemoveModes()
+                      setShowFormatPicker(true)
+                    }}
+                  >
+                    Add Format
+                  </button>
+                  {canReduceCharacterBuild ? (
+                    <button
+                      type="button"
+                      className="dashboard-action-link character-skills-action"
+                      disabled={
+                        !characterHasSpecializationFormatAccess || !characterFormats.length
+                      }
+                      onClick={() => {
+                        cancelAllAddRemoveModes()
+                        setShowFormatRemover(true)
+                      }}
+                    >
+                      Remove Format
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="dashboard-card character-skills-card">
+            {formatsError || (showFormatPicker && referenceFormatsError) ? (
+              <p className="list-page-error" role="alert">
+                {formatsError || referenceFormatsError}
+              </p>
+            ) : null}
+
+            {skillsLoading || formatsLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading formats…
+              </p>
+            ) : !characterHasSpecializationFormatAccess ? (
+              <p className="character-skills-empty character-skills-status character-lores-required-message">
+                {SPECIALIZATION_FORMAT_REQUIRED_MESSAGE}
+              </p>
+            ) : showFormatPicker ? (
+              allFormatsLoading || addingFormat ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  {addingFormat ? 'Adding format…' : 'Loading formats…'}
+                </p>
+              ) : (
+                <DataTable
+                  data={availableFormatOptions}
+                  columns={formatPickerColumns}
+                  emptyMessage="No formats available to add."
+                  onRowClick={handleAddFormat}
+                />
+              )
+            ) : showFormatRemover ? (
+              removingFormat ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Removing format…
+                </p>
+              ) : formatsLoading ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Loading formats…
+                </p>
+              ) : characterFormats.length ? (
+                <div className="character-skills-list">
                   <ul className="character-skills-items">
-                    {characterSkills.map((skill) => (
+                    {characterFormats.map((format) => (
+                      <li key={`${format.characterId}-${format.formatId}`}>
+                        <button
+                          type="button"
+                          className="character-skills-item character-skills-item-button"
+                          disabled={removingFormat}
+                          onClick={() => handleRemoveFormat(format)}
+                        >
+                          {getFormatDisplayName(format.formatId)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="character-skills-empty character-skills-status">
+                  No formats to remove.
+                </p>
+              )
+            ) : (
+              <div className="character-skills-list">
+                {characterFormats.length ? (
+                  <ul className="character-skills-items">
+                    {characterFormats.map((format) => (
                       <li
-                        key={`${skill.characterId}-${skill.skillId}`}
+                        key={`${format.characterId}-${format.formatId}`}
                         className="character-skills-item"
                       >
-                        {getSkillDisplayName(skill.skillId)}
+                        {getFormatDisplayName(format.formatId)}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="character-skills-empty">No skills found.</p>
+                  <p className="character-skills-empty">No formats found.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {isPlayerMode &&
+      !authLoading &&
+      !loading &&
+      !isCreateMode &&
+      character &&
+      !accessDenied ? (
+        <section className="dashboard-section">
+          <div className="character-skills-header">
+            <h2 className="dashboard-section-title">Lores</h2>
+            <div className="character-skills-header-actions">
+              {showLorePicker || showLoreRemover ? (
+                <button
+                  type="button"
+                  className="dashboard-action-link character-skills-action"
+                  disabled={addingLore || removingLore}
+                  onClick={() => {
+                    setShowLorePicker(false)
+                    setShowLoreRemover(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="dashboard-action-link character-skills-action"
+                    disabled={!characterHasEducationLoreAccess || !canAddMoreLores || skillsLoading}
+                    onClick={() => {
+                      cancelAllAddRemoveModes()
+                      setShowLorePicker(true)
+                    }}
+                  >
+                    Add Lore
+                  </button>
+                  {canReduceCharacterBuild ? (
+                    <button
+                      type="button"
+                      className="dashboard-action-link character-skills-action"
+                      disabled={!characterHasEducationLoreAccess || !characterLores.length}
+                      onClick={() => {
+                        cancelAllAddRemoveModes()
+                        setShowLoreRemover(true)
+                      }}
+                    >
+                      Remove Lore
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="dashboard-card character-skills-card">
+            {loresError || (showLorePicker && referenceLoresError) ? (
+              <p className="list-page-error" role="alert">
+                {loresError || referenceLoresError}
+              </p>
+            ) : null}
+
+            {skillsLoading || loresLoading ? (
+              <p className="list-page-loading character-skills-status" role="status">
+                Loading lores…
+              </p>
+            ) : !characterHasEducationLoreAccess ? (
+              <p className="character-skills-empty character-skills-status character-lores-required-message">
+                {EDUCATION_LORE_REQUIRED_MESSAGE}
+              </p>
+            ) : showLorePicker ? (
+              allLoresLoading || addingLore ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  {addingLore ? 'Adding lore…' : 'Loading lores…'}
+                </p>
+              ) : (
+                <DataTable
+                  data={availableLoreOptions}
+                  columns={lorePickerColumns}
+                  emptyMessage="No lores available to add."
+                  onRowClick={handleAddLore}
+                />
+              )
+            ) : showLoreRemover ? (
+              removingLore ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Removing lore…
+                </p>
+              ) : loresLoading ? (
+                <p className="list-page-loading character-skills-status" role="status">
+                  Loading lores…
+                </p>
+              ) : characterLores.length ? (
+                <div className="character-skills-list">
+                  <ul className="character-skills-items">
+                    {characterLores.map((lore) => (
+                      <li key={`${lore.characterId}-${lore.loreId}`}>
+                        <button
+                          type="button"
+                          className="character-skills-item character-skills-item-button"
+                          disabled={removingLore}
+                          onClick={() => handleRemoveLore(lore)}
+                        >
+                          {getLoreDisplayName(lore.loreId)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="character-skills-empty character-skills-status">
+                  No lores to remove.
+                </p>
+              )
+            ) : (
+              <div className="character-skills-list">
+                {characterLores.length ? (
+                  <ul className="character-skills-items">
+                    {characterLores.map((lore) => (
+                      <li
+                        key={`${lore.characterId}-${lore.loreId}`}
+                        className="character-skills-item"
+                      >
+                        {getLoreDisplayName(lore.loreId)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="character-skills-empty">No lores found.</p>
                 )}
               </div>
             )}
@@ -1707,7 +2559,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
       {!authLoading && !loading && !isCreateMode && character && !accessDenied ? (
         <section className="dashboard-section">
           <div className="character-skills-header">
-            <h2 className="dashboard-section-title">Talents</h2>
+            <h2 className="dashboard-section-title">Bloodline Talents</h2>
             <div className="character-skills-header-actions">
               {showTalentPicker || showTalentRemover ? (
                 <button
@@ -1728,22 +2580,24 @@ export default function CharacterSheet({ mode = 'admin' }) {
                     className="dashboard-action-link character-skills-action"
                     disabled={!activeCharacter?.bloodlineId}
                     onClick={() => {
-                      setShowTalentRemover(false)
+                      cancelAllAddRemoveModes()
                       setShowTalentPicker(true)
                     }}
                   >
                     Add Talent
                   </button>
-                  <button
-                    type="button"
-                    className="dashboard-action-link character-skills-action"
-                    onClick={() => {
-                      setShowTalentPicker(false)
-                      setShowTalentRemover(true)
-                    }}
-                  >
-                    Remove Talent
-                  </button>
+                  {canReduceCharacterBuild ? (
+                    <button
+                      type="button"
+                      className="dashboard-action-link character-skills-action"
+                      onClick={() => {
+                        cancelAllAddRemoveModes()
+                        setShowTalentRemover(true)
+                      }}
+                    >
+                      Remove Talent
+                    </button>
+                  ) : null}
                 </>
               )}
             </div>

@@ -51,6 +51,7 @@ export default function NumericField({
   step = 1,
   isEditing = false,
   disabled = false,
+  hideDecrease = false,
   fallback = '—',
   fontSizePx,
   decreaseLabel = 'Decrease',
@@ -75,6 +76,7 @@ export default function NumericField({
   const canAdjust = isEditing && !disabled && onChange
   const canDecrease =
     canAdjust &&
+    !hideDecrease &&
     (onDecrease || activeNumber !== null) &&
     (min === undefined || min === null || currentForAdjust > min)
   const canIncrease =
@@ -149,16 +151,18 @@ export default function NumericField({
           className="editable-field-edit numeric-field-edit"
           aria-labelledby={label ? labelId : undefined}
         >
-          <button
-            type="button"
-            className="editable-field-action numeric-field-action"
-            aria-label={`${decreaseLabel} ${label ?? shownValue}`}
-            title={decreaseLabel}
-            disabled={!canDecrease}
-            onClick={handleDecrease}
-          >
-            <MinusIcon {...iconProps} />
-          </button>
+          {!hideDecrease ? (
+            <button
+              type="button"
+              className="editable-field-action numeric-field-action"
+              aria-label={`${decreaseLabel} ${label ?? shownValue}`}
+              title={decreaseLabel}
+              disabled={!canDecrease}
+              onClick={handleDecrease}
+            >
+              <MinusIcon {...iconProps} />
+            </button>
+          ) : null}
           <span
             className="editable-field-input numeric-field-value"
             style={textStyle}

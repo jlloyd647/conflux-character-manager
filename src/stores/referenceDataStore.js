@@ -4,6 +4,8 @@ import { getAllBloodlines } from '../services/bloodlineService'
 import { getAllCurses } from '../services/curseService'
 import { getAllGifts } from '../services/giftService'
 import { getAllKingroups } from '../services/kingroupService'
+import { getAllFormats } from '../services/formatService'
+import { getAllLores } from '../services/loreService'
 import { getAllPrereqs } from '../services/prereqService'
 import { getAllRowStatuses } from '../services/rowStatusService'
 import { getAllSkills } from '../services/skillService'
@@ -23,6 +25,8 @@ import { getAllTalents } from '../services/talentService'
  * @typedef {import('../services/talentService').Talent} Talent
  * @typedef {import('../services/prereqService').Prereq} Prereq
  * @typedef {import('../services/rowStatusService').RowStatus} RowStatus
+ * @typedef {import('../services/loreService').Lore} Lore
+ * @typedef {import('../services/formatService').Format} Format
  */
 
 export const useReferenceDataStore = create((set, get) => ({
@@ -63,6 +67,14 @@ export const useReferenceDataStore = create((set, get) => ({
   rowStatusesLoading: false,
   rowStatusesError: null,
   rowStatusesLoaded: false,
+  lores: [],
+  loresLoading: false,
+  loresError: null,
+  loresLoaded: false,
+  formats: [],
+  formatsLoading: false,
+  formatsError: null,
+  formatsLoaded: false,
 
   loadSkills: async () => {
     const { skillsLoading, skillsLoaded, skills } = get()
@@ -542,4 +554,64 @@ export const useReferenceDataStore = create((set, get) => ({
       rowStatusesError: null,
       rowStatusesLoaded: false,
     }),
+
+  loadLores: async () => {
+    const { loresLoading, loresLoaded, lores } = get()
+
+    if (loresLoading) {
+      return lores
+    }
+
+    if (loresLoaded) {
+      return lores
+    }
+
+    set({ loresLoading: true, loresError: null })
+
+    try {
+      const nextLores = await getAllLores()
+      set({ lores: nextLores, loresLoading: false, loresLoaded: true })
+      return nextLores
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load lores'
+      set({ loresError: message, loresLoading: false, loresLoaded: true })
+      throw error
+    }
+  },
+
+  getLoreByLoreID: (loreID) =>
+    get().lores.find((lore) => lore.loreID === Number(loreID)) ?? null,
+
+  clearLores: () =>
+    set({ lores: [], loresLoading: false, loresError: null, loresLoaded: false }),
+
+  loadFormats: async () => {
+    const { formatsLoading, formatsLoaded, formats } = get()
+
+    if (formatsLoading) {
+      return formats
+    }
+
+    if (formatsLoaded) {
+      return formats
+    }
+
+    set({ formatsLoading: true, formatsError: null })
+
+    try {
+      const nextFormats = await getAllFormats()
+      set({ formats: nextFormats, formatsLoading: false, formatsLoaded: true })
+      return nextFormats
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load formats'
+      set({ formatsError: message, formatsLoading: false, formatsLoaded: true })
+      throw error
+    }
+  },
+
+  getFormatByFormatID: (formatID) =>
+    get().formats.find((format) => format.formatID === Number(formatID)) ?? null,
+
+  clearFormats: () =>
+    set({ formats: [], formatsLoading: false, formatsError: null, formatsLoaded: false }),
 }))

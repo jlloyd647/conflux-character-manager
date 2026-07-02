@@ -6,4 +6,6 @@ export const ROW_STATUS = {
   DELETED: 4,
   PROBATION: 5,
   BANNED: 6,
+  NEW: 7,
+  REROLL: 8,
 }
