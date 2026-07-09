@@ -86,10 +86,10 @@ export default function AdminApproveCharacterPage() {
   const [character, setCharacter] = useState(null)
   const [player, setPlayer] = useState(null)
   const [playerCharacters, setPlayerCharacters] = useState([])
-  const [originalXp, setOriginalXp] = useState(null)
   const [draftXp, setDraftXp] = useState('0')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [approveError, setApproveError] = useState('')
   const [approving, setApproving] = useState(false)
 
   useEffect(() => {
@@ -124,7 +124,6 @@ export default function AdminApproveCharacterPage() {
         }
 
         setCharacter(data)
-        setOriginalXp(data.xp ?? 0)
         setDraftXp(String(data.xp ?? 0))
 
         const [playerData, characters] = await Promise.all([
@@ -171,37 +170,30 @@ export default function AdminApproveCharacterPage() {
     return getKingroupByKingroupID(character.kingroupId)?.kingroupName ?? '—'
   }, [character?.kingroupId, getKingroupByKingroupID])
 
-  const xpHasChanged = useMemo(() => {
-    if (originalXp === null) {
-      return false
-    }
-
-    try {
-      return parseIntegerField(draftXp, 'Total XP') !== originalXp
-    } catch {
-      return false
-    }
-  }, [draftXp, originalXp])
-
   async function handleXpSave(nextValue) {
-    const xp = parseIntegerField(nextValue, 'Total XP')
+    const xp = parseIntegerField(nextValue, 'Starting XP')
     setDraftXp(String(xp))
   }
 
   async function handleApprove() {
-    if (!character?.id || approving || character.approved || !xpHasChanged) {
+    if (!character?.id || approving || character.approved) {
       return
     }
 
     setApproving(true)
-    setError('')
+    setApproveError('')
 
     try {
-      const xp = parseIntegerField(draftXp, 'Total XP')
+      const xp = parseIntegerField(draftXp, 'Starting XP')
+
+      if (xp <= 0) {
+        throw new Error('Starting XP must be greater than 0 before approving.')
+      }
+
       await approveCharacter(character.id, xp)
       navigate('/admin', { replace: true })
-    } catch (approveError) {
-      setError(approveError.message)
+    } catch (nextApproveError) {
+      setApproveError(nextApproveError.message)
     } finally {
       setApproving(false)
     }
@@ -268,6 +260,13 @@ export default function AdminApproveCharacterPage() {
 
           <section className="dashboard-section">
             <h2 className="dashboard-section-title">Approve</h2>
+
+            {approveError ? (
+              <p className="list-page-error" role="alert">
+                {approveError}
+              </p>
+            ) : null}
+
             <div className="dashboard-card dashboard-profile-card">
               {character.approved ? (
                 <p className="character-approve-status" role="status">
@@ -277,7 +276,7 @@ export default function AdminApproveCharacterPage() {
               <div className="dashboard-profile-grid character-approve-actions">
                 <div className="dashboard-profile-field">
                   <EditableField
-                    label="Total XP"
+                    label="Starting XP"
                     value={formatFieldValue(draftXp)}
                     inputType="number"
                     disabled={character.approved}
@@ -288,7 +287,7 @@ export default function AdminApproveCharacterPage() {
               <button
                 type="button"
                 className="dashboard-action-link edit-page-create-button"
-                disabled={approving || character.approved || !xpHasChanged}
+                disabled={approving || character.approved}
                 onClick={handleApprove}
               >
                 {approving ? 'Approving…' : 'Approve Character'}

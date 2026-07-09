@@ -18,6 +18,8 @@ This layout will display a few sections that the admin will need to make approva
 ## Feature Updates
 
 1 - [x] - "Approve" should not be pressable if the XP has not been changed.
+2 - [x] - Update "Approve Character" Approve button to always be enabled, but given an error and not approve if the XP is <= 0.
+3 - [x] - Update the error for the approve character button to appear above the Approve section.
 
 ## Bug Fixes
 
