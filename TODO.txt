@@ -6,3 +6,7 @@ functionality up to prod.
 [] Investigate which user roles can access which database commands
 
 [] If Bloodline is changed erase users kingroup. 
+
+[] If a kingroup or bloodline is changed and it's free skill is a prereq, remove subsiquent skill
+
+[] Reload skills on Bloodline / Kingroup change
