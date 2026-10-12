@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getSession, onAuthStateChange } from '../services/authService'
+import { useInactivityLogout } from '../hooks/useInactivityLogout'
+import {
+  expireSession,
+  getSession,
+  isInactivityExpired,
+  onAuthStateChange,
+} from '../services/authService'
 import { getProfileById } from '../services/profileService'
 import { useReferenceDataStore } from '../stores/referenceDataStore'
 import { AuthContext } from './authContext'
@@ -24,7 +30,14 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let active = true
 
-    async function syncAuth(nextSession) {
+    async function syncAuth(incomingSession) {
+      let nextSession = incomingSession
+
+      if (nextSession && isInactivityExpired()) {
+        await expireSession()
+        nextSession = null
+      }
+
       const nextProfile = await loadProfileForSession(nextSession)
 
       if (!active) {
@@ -75,8 +88,10 @@ export function AuthProvider({ children }) {
         }
       })
 
+    // Supabase holds an auth lock while this callback runs; awaiting other
+    // supabase calls inside it deadlocks, so defer the work.
     const { data: { subscription } } = onAuthStateChange((nextSession) => {
-      syncAuth(nextSession)
+      setTimeout(() => syncAuth(nextSession), 0)
     })
 
     return () => {
@@ -84,6 +99,8 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe()
     }
   }, [])
+
+  useInactivityLogout(Boolean(session))
 
   const role = profile?.role ?? null
   const userType = session ? role : 'guest'

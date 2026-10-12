@@ -8,6 +8,42 @@ const AUTH_ERROR_MESSAGES = {
   invalid_email: 'Please enter a valid email address.',
 }
 
+export const INACTIVITY_TIMEOUT_MS = 4 * 60 * 60 * 1000
+
+const LAST_ACTIVITY_KEY = 'conflux:lastActivityAt'
+
+export function recordActivity() {
+  localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()))
+}
+
+export function getLastActivity() {
+  const value = Number(localStorage.getItem(LAST_ACTIVITY_KEY))
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+function clearActivity() {
+  localStorage.removeItem(LAST_ACTIVITY_KEY)
+}
+
+/**
+ * A missing timestamp is treated as active so sessions that predate
+ * activity tracking are not signed out on first load.
+ */
+export function isInactivityExpired() {
+  const lastActivity = getLastActivity()
+  return lastActivity !== null && Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS
+}
+
+export async function expireSession() {
+  clearActivity()
+
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // Local sign-out only clears browser storage; nothing to recover.
+  }
+}
+
 function toAuthError(error) {
   const message =
     AUTH_ERROR_MESSAGES[error.code] ??
@@ -27,6 +63,7 @@ export async function login({ email, password }) {
     throw toAuthError(error)
   }
 
+  recordActivity()
   return data
 }
 
@@ -64,6 +101,7 @@ export async function updatePassword({ password }) {
 }
 
 export async function logout() {
+  clearActivity()
   const { error } = await supabase.auth.signOut()
 
   if (error) {
@@ -72,6 +110,8 @@ export async function logout() {
 }
 
 export async function forceLogout() {
+  clearActivity()
+
   try {
     await supabase.auth.signOut({ scope: 'global' })
   } catch {

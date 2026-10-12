@@ -35,6 +35,7 @@ Allows an existing user to authenticate and access the application.
 - Display user-friendly authentication errors
 - Never store passwords locally
 - Redirect authenticated users away from the login page
+- Sessions expire after 4 hours of inactivity (no clicks, key presses, scrolls, or touches in any open tab). An expired session is signed out locally on the next page load, tab focus, or interaction, and protected pages redirect to login.
 
 ---
 

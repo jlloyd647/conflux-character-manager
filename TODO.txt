@@ -10,3 +10,7 @@ functionality up to prod.
 [] If a kingroup or bloodline is changed and it's free skill is a prereq, remove subsiquent skill
 
 [] Reload skills on Bloodline / Kingroup change
+
+[] Figure out where XP Spent and Stat XP Spent is coming from
+
+[] Verify why we have the 49-51 problem and see if it's doing the right things.

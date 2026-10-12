@@ -45,6 +45,7 @@ Exists to give the user access to commonly used links and menus that are viewabl
 ## Bug Fixes
 
 1 - [x] When I click Players or Characters the Staff link also goes into an active state
+2 - [x] Returning logged-in users landing on a public page (e.g. home) saw guest links until they clicked Login. Header must use the current user type on public pages too.
 
 ---
 
