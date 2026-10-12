@@ -1,6 +1,7 @@
 import {
   calculateStatXpSpent,
   findProgressionBracketForDecrease,
+  findProgressionBracketForDecreaseFromBase,
   findProgressionBracketForIncrease,
   getProgressionForDecrease,
   getProgressionForIncrease,
@@ -128,12 +129,23 @@ function getProgressionsForCharacterStat(statKey, statProgressions, stats) {
  * @param {number | null | undefined} value
  * @param {StatProgression[]} progressions
  * @param {'increase' | 'decrease'} [direction]
+ * @param {number | null | undefined} [baseValue] When decreasing, replay from this value to find the step taken
  */
-export function getStatProgressionIncrement(value, progressions, direction = 'increase') {
-  const bracket =
-    direction === 'decrease'
-      ? findProgressionBracketForDecrease(value, progressions)
-      : findProgressionBracketForIncrease(value, progressions)
+export function getStatProgressionIncrement(
+  value,
+  progressions,
+  direction = 'increase',
+  baseValue = undefined,
+) {
+  let bracket
+
+  if (direction === 'increase') {
+    bracket = findProgressionBracketForIncrease(value, progressions)
+  } else if (baseValue === undefined || baseValue === null) {
+    bracket = findProgressionBracketForDecrease(value, progressions)
+  } else {
+    bracket = findProgressionBracketForDecreaseFromBase(value, baseValue, progressions)
+  }
   const increment = bracket?.progressionIncAmt
 
   if (increment === null || increment === undefined) {
@@ -193,6 +205,7 @@ export function getCharacterStatDecreaseStep(
       value,
       getProgressionsForCharacterStat(statKey, statProgressions, stats),
       'decrease',
+      baseValue,
     )
   }
 

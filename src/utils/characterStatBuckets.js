@@ -1,7 +1,4 @@
-import {
-  findProgressionBracketForDecrease,
-  findProgressionBracketForIncrease,
-} from './statCalculation'
+import { findProgressionBracketForIncrease } from './statCalculation'
 import { getStatIdForCharacterStat, getStatProgressionIncrement, calculateCharacterStatXpSpent } from './statProgression'
 
 /** @typedef {import('../services/statProgressionService').StatProgression} StatProgression */
@@ -260,13 +257,9 @@ export function pageStatsToInitialBucketPayload(
 /**
  * @param {number} value
  * @param {StatProgression[]} progressions
- * @param {'increase' | 'decrease'} direction
  */
-function getBracketIndex(value, progressions, direction) {
-  const bracket =
-    direction === 'decrease'
-      ? findProgressionBracketForDecrease(value, progressions)
-      : findProgressionBracketForIncrease(value, progressions)
+function getBracketIndex(value, progressions) {
+  const bracket = findProgressionBracketForIncrease(value, progressions)
 
   if (!bracket) {
     return 0
@@ -341,10 +334,7 @@ function applyTotalChangeToBuckets(buckets, statKey, from, to, progressions) {
   if (current < target) {
     while (current < target) {
       const increment = getStatProgressionIncrement(current, progressions, 'increase')
-      const bucketIndex = Math.min(
-        getBracketIndex(current, progressions, 'increase'),
-        columnCount - 1,
-      )
+      const bucketIndex = Math.min(getBracketIndex(current, progressions), columnCount - 1)
 
       result[bucketIndex] = toNumericStatValue(result[bucketIndex]) + increment
       current += increment
@@ -354,15 +344,18 @@ function applyTotalChangeToBuckets(buckets, statKey, from, to, progressions) {
   }
 
   if (current > target) {
-    while (current > target) {
-      const decrement = getStatProgressionIncrement(current, progressions, 'decrease')
-      const bucketIndex = Math.min(
-        getBracketIndex(current, progressions, 'decrease'),
-        columnCount - 1,
-      )
+    // Replay the increases from target up to current so each removed step matches
+    // the bracket that added it (same path the XP refund uses).
+    let value = target
+    let steps = 0
 
-      removeFromBuckets(result, bucketIndex, decrement)
-      current -= decrement
+    while (value < current && steps < MAX_RANK_STEPS) {
+      const increment = getStatProgressionIncrement(value, progressions, 'increase')
+      const bucketIndex = Math.min(getBracketIndex(value, progressions), columnCount - 1)
+
+      removeFromBuckets(result, bucketIndex, increment)
+      value += increment
+      steps += 1
     }
   }
 

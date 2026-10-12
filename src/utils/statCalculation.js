@@ -99,6 +99,10 @@ export function findProgressionBracketForIncrease(value, progressions) {
 }
 
 /**
+ * Returns the bracket whose increase lands on `value`, so a decrease always
+ * undoes the step that produced the value. At a bracket's min value this is
+ * the previous tier (or its talent-reduced amount, when progressions are resolved).
+ *
  * @param {number | null | undefined} value
  * @param {StatProgression[]} progressions
  * @returns {StatProgression | null}
@@ -108,6 +112,27 @@ export function findProgressionBracketForDecrease(value, progressions) {
 
   if (!Number.isFinite(numericValue)) {
     return null
+  }
+
+  const sortedByMinDesc = [...progressions].sort(
+    (left, right) =>
+      (right.progressionMinVal ?? Number.NEGATIVE_INFINITY) -
+      (left.progressionMinVal ?? Number.NEGATIVE_INFINITY),
+  )
+
+  for (const progression of sortedByMinDesc) {
+    const increaseAmount = Number(progression.progressionIncAmt ?? 1)
+
+    if (!Number.isFinite(increaseAmount) || increaseAmount <= 0) {
+      continue
+    }
+
+    const previousValue = numericValue - increaseAmount
+    const increaseBracket = findProgressionBracketForIncrease(previousValue, progressions)
+
+    if (increaseBracket?.progressionID === progression.progressionID) {
+      return progression
+    }
   }
 
   const matching = progressions.filter((progression) => {
@@ -122,6 +147,49 @@ export function findProgressionBracketForDecrease(value, progressions) {
   }
 
   return null
+}
+
+/**
+ * Replays increases from `baseValue` and returns the bracket of the step that
+ * lands on `value`. Unlike findProgressionBracketForDecrease this is unambiguous
+ * when brackets overlap (e.g. 49 +2 -> 51 and 50 +1 -> 51 both look valid, but
+ * only the path from the base is reachable). Falls back to the base-free lookup
+ * when `value` is not on the path.
+ *
+ * @param {number | null | undefined} value
+ * @param {number | null | undefined} baseValue
+ * @param {StatProgression[]} progressions
+ * @returns {StatProgression | null}
+ */
+export function findProgressionBracketForDecreaseFromBase(value, baseValue, progressions) {
+  const target = Number(value)
+
+  if (!Number.isFinite(target)) {
+    return null
+  }
+
+  let current = toNumericValue(baseValue)
+  let lastBracket = null
+  let steps = 0
+
+  while (current < target && steps < MAX_PROGRESSION_STEPS) {
+    const bracket = findProgressionBracketForIncrease(current, progressions)
+    const increaseAmount = Number(bracket?.progressionIncAmt ?? 1)
+
+    if (!bracket || !Number.isFinite(increaseAmount) || increaseAmount <= 0) {
+      break
+    }
+
+    lastBracket = bracket
+    current += increaseAmount
+    steps += 1
+  }
+
+  if (current === target && lastBracket) {
+    return lastBracket
+  }
+
+  return findProgressionBracketForDecrease(target, progressions)
 }
 
 /**
@@ -234,7 +302,7 @@ export function getProgressionForDecrease(
   }
 
   const progressions = getProgressionsForStatId(statId, progressionRules)
-  const bracket = findProgressionBracketForDecrease(numericValue, progressions)
+  const bracket = findProgressionBracketForDecreaseFromBase(numericValue, baseValue, progressions)
 
   return toProgressionResult(bracket)
 }

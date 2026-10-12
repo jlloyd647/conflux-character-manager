@@ -118,6 +118,8 @@ const lorePickerColumns = [{ key: 'loreName', header: 'Lore Name' }]
 
 const formatPickerColumns = [{ key: 'formatName', header: 'Format Name' }]
 
+const SHOW_FORMATS_SECTION = false
+
 const CHARACTER_STAT_FIELDS = [
   { key: 'vitality', label: 'Vitality', minKey: 'minVitality', maxKey: 'maxVitality' },
   { key: 'mind', label: 'Mind', minKey: 'minMind', maxKey: 'maxMind' },
@@ -532,7 +534,13 @@ export default function CharacterSheet({ mode = 'admin' }) {
   }, [authLoading, isCreateMode, isPlayerMode, character?.characterId])
 
   useEffect(() => {
-    if (authLoading || isCreateMode || !isPlayerMode || !character?.characterId) {
+    if (
+      !SHOW_FORMATS_SECTION ||
+      authLoading ||
+      isCreateMode ||
+      !isPlayerMode ||
+      !character?.characterId
+    ) {
       return undefined
     }
 
@@ -2358,7 +2366,8 @@ export default function CharacterSheet({ mode = 'admin' }) {
         </section>
       ) : null}
 
-      {isPlayerMode &&
+      {SHOW_FORMATS_SECTION &&
+      isPlayerMode &&
       !authLoading &&
       !loading &&
       !isCreateMode &&

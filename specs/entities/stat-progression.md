@@ -43,6 +43,7 @@ reduced_increase_amount: Increase amount used instead of increase_amount when th
 
 - Which talents unlock a progression's reduced values is kept in the STAT_PROGRESSION_REDUCING_TALENTS constant in src/utils/statProgression.js ({ progressionID: [talentID, ...] }); owning any listed talent unlocks the reduction
 - The reduced values are resolved per character by resolveStatProgressionsForTalents in src/utils/statProgression.js; all stat XP cost, refund, and step calculations use the resolved progressions
+- A decrease always undoes the increase that produced the current value. At a tier's min_value, the decrease uses the previous tier's increase_amount (or its reduced_increase_amount when unlocked), so a stat can never be reduced to a value that increases cannot reach
 - Adding or removing a talent recalculates the character's stat XP at the new rates and charges / refunds the difference along with the talent's own cost
 
 ## Data Location
