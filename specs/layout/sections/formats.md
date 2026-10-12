@@ -22,6 +22,10 @@ Once a user removes a format, the character-formats the relevant row in the char
 
 - Format Name
 
+## Status
+
+Hidden. The section is not rendered and character formats are not fetched while `SHOW_FORMATS_SECTION` in `src/components/CharacterSheet.jsx` is `false`. Set it to `true` to restore the section.
+
 ## Feature Updates
 
 1 - [x] - Character is limited to formats based on how many skills the character currently has. For each of these skillID's [1014,1015,1016], the character may purchase 1 format. If a character does not have any of the listed skills, a box should display that states "Specilization L1 and above is required for formats"
