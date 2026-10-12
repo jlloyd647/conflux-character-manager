@@ -14,6 +14,8 @@ Stat progressions indicate the XP cost to the character to increase their stats 
 - max_value: numeric
 - xp_cost: numeric
 - increase_amount: numeric
+- reduced_xp_cost: numeric (nullable)
+- reduced_increase_amount: numeric (nullable)
 
 ### Banes will map to a more javascript friendly form when in the application
 
@@ -23,6 +25,8 @@ Stat progressions indicate the XP cost to the character to increase their stats 
 - max_value | progressionMaxVal
 - xp_cost | progressionXPCost
 - increase_amount | progressionIncAmt
+- reduced_xp_cost | progressionReducedXPCost
+- reduced_increase_amount | progressionReducedIncAmt
 
 ## Field Explanation
 
@@ -32,6 +36,14 @@ min_value: minimum needed value to fall into this stat progression category
 max_value: maximum allowed value to fall into this stat progression category
 xp_cost: Amount of XP needed to increase the stat while in this category
 increase_amount: Amount a stat increases when purchased from within this category
+reduced_xp_cost: XP cost used instead of xp_cost when the character owns a talent that unlocks this category's reduction (null keeps xp_cost)
+reduced_increase_amount: Increase amount used instead of increase_amount when the character owns a talent that unlocks this category's reduction (null keeps increase_amount)
+
+## Rules
+
+- Which talents unlock a progression's reduced values is kept in the STAT_PROGRESSION_REDUCING_TALENTS constant in src/utils/statProgression.js ({ progressionID: [talentID, ...] }); owning any listed talent unlocks the reduction
+- The reduced values are resolved per character by resolveStatProgressionsForTalents in src/utils/statProgression.js; all stat XP cost, refund, and step calculations use the resolved progressions
+- Adding or removing a talent recalculates the character's stat XP at the new rates and charges / refunds the difference along with the talent's own cost
 
 ## Data Location
 

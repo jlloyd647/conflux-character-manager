@@ -17,6 +17,137 @@
 
 const SOCIAL_SKILL_TYPE_ID = 7
 
+/**
+ * Skills a bloodline is not allowed to purchase: { [bloodlineID]: skillID[] }.
+ * Bloodlines without an entry have no restrictions.
+ * @type {Record<number, number[]>}
+ */
+const BLOODLINE_RESTRICTED_SKILLS = {
+  7: [1063,1064,1065,1066,1067,1068,1069,1070,1071,1072,1073,1074,1075,1076], // Wright Combat debarment
+}
+
+/**
+ * @typedef {{
+ *   name: string,
+ *   skillIDs: number[],
+ *   maxOwned: number,
+ *   bloodlineMaxOwned?: Record<number, number>,
+ * }} ExclusiveSkillSet
+ */
+
+/**
+ * Sets of skills where a character may only own a limited number of purchased skills.
+ * A character may own any maxOwned skills from the set.
+ * bloodlineMaxOwned replaces maxOwned for specific bloodlines: { [bloodlineID]: limit }.
+ * Free skills (characterSkill.isFree) do not count toward the limit.
+ * @type {ExclusiveSkillSet[]}
+ */
+const EXCLUSIVE_SKILL_SETS = [
+  {
+    name: 'Level 1 Format Specializations',
+    skillIDs: [1004, 1007, 1010],
+    maxOwned: 1,
+    bloodlineMaxOwned: {},
+  },
+  {
+    name: 'Level 2 Format Specializations',
+    skillIDs: [1005, 1008, 1011],
+    maxOwned: 1,
+    bloodlineMaxOwned: {},
+  },
+  {
+    name: 'Level 3 Format Specializations',
+    skillIDs: [1006, 1009, 1012],
+    maxOwned: 1,
+    bloodlineMaxOwned: {},
+  },
+  {
+    name: 'Type Specializations',
+    skillIDs: [1017, 1018, 1019, 1020, 1021],
+    maxOwned: 3,
+    bloodlineMaxOwned: { 7: 4 },
+  },
+]
+
+const MIN_BLOODLINE_ADJUSTED_XP_COST = 1
+
+/**
+ * @typedef {{
+ *   skillID?: number,
+ *   skillTypeID?: number,
+ *   multiplier?: number,
+ *   delta?: number,
+ * }} BloodlineSkillXPModifier
+ */
+
+/**
+ * XP cost adjustments per bloodline: { [bloodlineID]: BloodlineSkillXPModifier[] }.
+ * Each rule matches by skillID or skillTypeID; a skillID rule takes precedence over a skillTypeID rule.
+ * multiplier is applied first (rounded down), then delta is added.
+ * The result never goes below MIN_BLOODLINE_ADJUSTED_XP_COST; skills with a base cost of 0 stay free.
+ * @type {Record<number, BloodlineSkillXPModifier[]>}
+ */
+const BLOODLINE_SKILL_XP_MODIFIERS = {
+  // 0: [
+  //   { skillTypeID: 7, multiplier: 0.5 }, // Placeholder - Bloodline name: Social skills at half cost
+  //   { skillID: 0, delta: -1 }, // Placeholder - Bloodline name: Skill name costs 1 less
+  // ],
+  1: [ // Undead
+    { skillTypeID: 1, delta: -2 },
+    { skillTypeID: 2, delta: -2 },
+    { skillTypeID: 5, delta: -2 }
+  ],
+
+  2: [ // Shifter
+    { skillTypeID: 3, delta: 1 },
+    { skillTypeID: 7, multiplier: 0.5}
+  ],
+
+  4: [ // HalfBorn
+    { skillID: 1001, delta: -1},
+    { skillID: 1002, delta: -1},
+    { skillID: 1003, delta: -1},
+    { skillID: 1017, delta: -1},
+    { skillID: 1018, delta: -1},
+    { skillID: 1019, delta: -1},
+    { skillID: 1020, delta: -1},
+    { skillID: 1021, delta: -1}
+  ],
+
+  7: [ // Wrights
+    { skillTypeID: 3, delta: -2}
+  ]
+}
+
+/**
+ * @param {Pick<Skill, 'costXP' | 'skillID' | 'skillTypeID'>} skill
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {number | null}
+ */
+export function getBloodlineSkillXPCost(skill, bloodlineID) {
+  if (skill.costXP === null || skill.costXP === undefined) {
+    return null
+  }
+
+  const rules = BLOODLINE_SKILL_XP_MODIFIERS[Number(bloodlineID)] ?? []
+  const rule =
+    rules.find((entry) => entry.skillID !== undefined && entry.skillID === Number(skill.skillID)) ??
+    rules.find(
+      (entry) =>
+        entry.skillTypeID !== undefined && entry.skillTypeID === Number(skill.skillTypeID),
+    )
+
+  const baseCost = Number(skill.costXP)
+
+  if (!rule || baseCost <= 0) {
+    return baseCost
+  }
+
+  const multiplied = Math.floor(baseCost * (rule.multiplier ?? 1))
+
+  return Math.max(MIN_BLOODLINE_ADJUSTED_XP_COST, multiplied + (rule.delta ?? 0))
+}
+
 const PREREQ_RANK_FIELD_MAP = {
   talent_r1: 'skillPrereqTalentR1',
   talent_r2: 'skillPrereqTalentR2',
@@ -55,12 +186,13 @@ function getAvailableXp(character, xpSpent) {
  * @returns {SkillBuyCheckResult}
  */
 export function checkXPCost(character, skill, xpSpent) {
-  if (skill.costXP === null || skill.costXP === undefined) {
+  const cost = getBloodlineSkillXPCost(skill, character.bloodlineId)
+
+  if (cost === null) {
     return { valid: true, message: '' }
   }
 
   const availableXp = getAvailableXp(character, xpSpent)
-  const cost = Number(skill.costXP)
 
   if (availableXp >= cost) {
     return { valid: true, message: '' }
@@ -93,6 +225,103 @@ export function checkSkillPrereq(characterSkills, skill) {
   return {
     valid: false,
     message: `Requires skill ID ${skill.prereqSkillID} before this skill can be purchased.`,
+  }
+}
+
+/**
+ * @param {number | string} skillID
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {boolean}
+ */
+export function isSkillRestrictedForBloodline(skillID, bloodlineID) {
+  const restrictedSkillIDs = BLOODLINE_RESTRICTED_SKILLS[Number(bloodlineID)] ?? []
+
+  return restrictedSkillIDs.includes(Number(skillID))
+}
+
+/**
+ * @param {Character} character
+ * @param {Skill} skill
+ * @returns {SkillBuyCheckResult}
+ */
+export function checkBloodlineRestriction(character, skill) {
+  if (!isSkillRestrictedForBloodline(skill.skillID, character.bloodlineId)) {
+    return { valid: true, message: '' }
+  }
+
+  return {
+    valid: false,
+    message: `${skill.skillName || `Skill ${skill.skillID}`} cannot be purchased by this bloodline.`,
+  }
+}
+
+/**
+ * @param {ExclusiveSkillSet} set
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {number}
+ */
+function getExclusiveSkillSetLimit(set, bloodlineID) {
+  return set.bloodlineMaxOwned?.[Number(bloodlineID)] ?? set.maxOwned
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {Pick<Skill, 'skillID'>} skill
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {{ set: ExclusiveSkillSet, limit: number } | null}
+ */
+function findBlockingExclusiveSkillSet(characterSkills, skill, bloodlineID) {
+  const skillID = Number(skill.skillID)
+  const purchasedSkillIDs = new Set(
+    characterSkills
+      .filter((characterSkill) => !characterSkill.isFree)
+      .map((characterSkill) => Number(characterSkill.skillId)),
+  )
+
+  for (const set of EXCLUSIVE_SKILL_SETS) {
+    if (!set.skillIDs.includes(skillID)) {
+      continue
+    }
+
+    const limit = getExclusiveSkillSetLimit(set, bloodlineID)
+    const ownedCount = set.skillIDs.filter((id) => purchasedSkillIDs.has(id)).length
+
+    if (ownedCount >= limit) {
+      return { set, limit }
+    }
+  }
+
+  return null
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {Pick<Skill, 'skillID'>} skill
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {boolean}
+ */
+export function isSkillBlockedBySet(characterSkills, skill, bloodlineID) {
+  return findBlockingExclusiveSkillSet(characterSkills, skill, bloodlineID) !== null
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {Pick<Skill, 'skillID'>} skill
+ * @param {number | string | null | undefined} bloodlineID
+ * @returns {SkillBuyCheckResult}
+ */
+export function checkExclusiveSkillSet(characterSkills, skill, bloodlineID) {
+  const blocking = findBlockingExclusiveSkillSet(characterSkills, skill, bloodlineID)
+
+  if (!blocking) {
+    return { valid: true, message: '' }
+  }
+
+  const setName = blocking.set.name || 'this skill set'
+
+  return {
+    valid: false,
+    message: `You can only own ${blocking.limit} skill(s) from ${setName}.`,
   }
 }
 
@@ -184,6 +413,8 @@ export function checkSkillPurchase({
   xpSpent,
 }) {
   const checks = [
+    checkBloodlineRestriction(character, skill),
+    checkExclusiveSkillSet(characterSkills, skill, character.bloodlineId),
     checkXPCost(character, skill, xpSpent),
     checkSkillPrereq(characterSkills, skill),
     checkSkillRank(characterSkillPrereq, skill, prereqs),

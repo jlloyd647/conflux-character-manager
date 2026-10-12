@@ -1,5 +1,4 @@
 import {
-  calculateStatTotal,
   findProgressionBracketForDecrease,
   findProgressionBracketForIncrease,
 } from './statCalculation'
@@ -156,28 +155,6 @@ function getProgressionsForStat(statKey, statProgressions, stats) {
 }
 
 /**
- * @param {number[] | null | undefined} bucketValues
- * @param {number} baseValue
- * @param {StatProgression[]} progressions
- */
-function calculateRankFromBucketIncrements(bucketValues, baseValue, progressions) {
-  const target = baseValue + sumBucketValues(bucketValues)
-  let current = baseValue
-  let rank = 0
-
-  while (current < target) {
-    if (rank >= MAX_RANK_STEPS) {
-      break
-    }
-
-    current += getStatProgressionIncrement(current, progressions)
-    rank += 1
-  }
-
-  return rank
-}
-
-/**
  * @param {number | null | undefined} currentValue
  * @param {number | null | undefined} baseValue
  * @param {StatProgression[]} progressions
@@ -236,82 +213,48 @@ export function calculateCharacterStatsXpSpentFromPageStats(
  * @param {string} statKey
  * @param {Record<string, number[]> | null | undefined} buckets
  * @param {Record<string, unknown> | null | undefined} bloodline
- * @param {StatProgression[]} statProgressions
- * @param {Stat[]} stats
  */
-export function calculateDisplayedPageStat(
-  statKey,
-  buckets,
-  bloodline,
-  statProgressions,
-  stats,
-) {
+export function calculateDisplayedPageStat(statKey, buckets, bloodline) {
   const minKey = BLOODLINE_MIN_KEYS[statKey]
   const baseValue = toNumericStatValue(bloodline?.[minKey])
-  const statId = getStatIdForCharacterStat(statKey, stats)
-  const progressions = getProgressionsForStat(statKey, statProgressions, stats)
-  const bucketValues = buckets?.[statKey] ?? []
 
-  if (!statId || !progressions.length) {
-    return baseValue + sumBucketValues(bucketValues)
-  }
-
-  try {
-    const rank = calculateRankFromBucketIncrements(
-      bucketValues,
-      baseValue,
-      progressions,
-    )
-
-    return calculateStatTotal(statId, rank, baseValue, statProgressions)
-  } catch {
-    return baseValue + sumBucketValues(bucketValues)
-  }
+  return baseValue + sumBucketValues(buckets?.[statKey])
 }
 
 /**
  * @param {Record<string, number[]> | null | undefined} buckets
  * @param {Record<string, unknown> | null | undefined} bloodline
- * @param {StatProgression[]} statProgressions
- * @param {Stat[]} stats
  * @returns {Record<string, number>}
  */
-export function calculateDisplayedPageStats(
-  buckets,
-  bloodline,
-  statProgressions,
-  stats,
-) {
+export function calculateDisplayedPageStats(buckets, bloodline) {
   return Object.fromEntries(
     CHARACTER_STAT_PAGE_KEYS.map((statKey) => [
       statKey,
-      calculateDisplayedPageStat(
-        statKey,
-        buckets,
-        bloodline,
-        statProgressions,
-        stats,
-      ),
+      calculateDisplayedPageStat(statKey, buckets, bloodline),
     ]),
   )
 }
 
 /**
  * @param {Partial<Record<string, number | null | undefined>>} pageStats
+ * @param {Partial<Record<string, number | null | undefined>>} [basePageStats] Bloodline minimums
+ * @param {StatProgression[]} [statProgressions]
+ * @param {Stat[]} [stats]
  * @returns {Record<string, number>}
  */
-export function pageStatsToInitialBucketPayload(pageStats) {
-  const bucketValues = createEmptyBucketValues()
-
-  for (const statKey of CHARACTER_STAT_PAGE_KEYS) {
-    const total = toNumericStatValue(pageStats[statKey])
-
-    if (total !== 0) {
-      bucketValues[statKey][0] = total
-    }
-  }
-
-  return bucketValuesToDbPayload(bucketValues)
+export function pageStatsToInitialBucketPayload(
+  pageStats,
+  basePageStats = {},
+  statProgressions = [],
+  stats = [],
+) {
+  return pageStatsToBucketPayload(
+    createEmptyBucketValues(),
+    basePageStats,
+    pageStats,
+    statProgressions,
+    stats,
+  )
 }
 
 /**
@@ -343,6 +286,34 @@ function getBracketIndex(value, progressions, direction) {
 }
 
 /**
+ * Removes `amount` from the preferred bucket, taking any shortfall from the
+ * highest non-empty buckets so a decrease is never silently dropped.
+ *
+ * @param {number[]} buckets
+ * @param {number} preferredIndex
+ * @param {number} amount
+ */
+function removeFromBuckets(buckets, preferredIndex, amount) {
+  let remaining = amount
+  const order = [
+    preferredIndex,
+    ...buckets.map((_, index) => buckets.length - 1 - index).filter((index) => index !== preferredIndex),
+  ]
+
+  for (const index of order) {
+    if (remaining <= 0) {
+      break
+    }
+
+    const available = toNumericStatValue(buckets[index])
+    const taken = Math.min(available, remaining)
+
+    buckets[index] = available - taken
+    remaining -= taken
+  }
+}
+
+/**
  * @param {number[]} buckets
  * @param {string} statKey
  * @param {number} from
@@ -361,8 +332,9 @@ function applyTotalChangeToBuckets(buckets, statKey, from, to, progressions) {
   const target = toNumericStatValue(to)
 
   if (!progressions.length) {
+    const nextTotal = Math.max(0, sumBucketValues(result) + target - current)
     result.fill(0)
-    result[0] = target
+    result[0] = nextTotal
     return result
   }
 
@@ -389,7 +361,7 @@ function applyTotalChangeToBuckets(buckets, statKey, from, to, progressions) {
         columnCount - 1,
       )
 
-      result[bucketIndex] = Math.max(0, toNumericStatValue(result[bucketIndex]) - decrement)
+      removeFromBuckets(result, bucketIndex, decrement)
       current -= decrement
     }
   }

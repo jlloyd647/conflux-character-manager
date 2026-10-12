@@ -1,11 +1,12 @@
 import { supabase } from './supabaseClient'
 
-const CHARACTER_LORE_COLUMNS = ['character_id', 'lore_id'].join(', ')
+const CHARACTER_LORE_COLUMNS = ['character_id', 'lore_id', 'is_free'].join(', ')
 
 /**
  * @typedef {{
  *   characterId: number,
  *   loreId: number,
+ *   isFree: boolean,
  * }} CharacterLore
  */
 
@@ -18,6 +19,7 @@ function mapCharacterLoreRow(row) {
   return {
     characterId: row.character_id ?? 0,
     loreId: row.lore_id ?? 0,
+    isFree: row.is_free === true,
   }
 }
 
@@ -103,6 +105,7 @@ export async function addCharacterLore(characterId, loreId) {
     .insert({
       character_id: numericCharacterId,
       lore_id: numericLoreId,
+      is_free: false,
     })
     .select(CHARACTER_LORE_COLUMNS)
     .single()

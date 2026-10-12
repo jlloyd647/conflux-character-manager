@@ -23,7 +23,12 @@ export function hasEducationLoreAccess(characterSkills) {
   return countEducationLoreSkills(characterSkills) > 0
 }
 
-/** @param {{ skillId: number }[]} characterSkills @param {{ loreId: number }[]} characterLores */
+/** @param {{ loreId: number, isFree?: boolean }[]} characterLores */
+export function countPurchasedLores(characterLores) {
+  return characterLores.filter((lore) => !lore.isFree).length
+}
+
+/** @param {{ skillId: number }[]} characterSkills @param {{ loreId: number, isFree?: boolean }[]} characterLores */
 export function canPurchaseMoreLores(characterSkills, characterLores) {
-  return characterLores.length < getMaxCharacterLores(characterSkills)
+  return countPurchasedLores(characterLores) < getMaxCharacterLores(characterSkills)
 }

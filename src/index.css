@@ -680,6 +680,16 @@ code {
   margin: 0;
 }
 
+.skill-cost-adjusted {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.skill-cost-base {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
 .character-skills-card .data-table-wrapper {
   border: none;
   border-radius: 0;
@@ -954,6 +964,15 @@ code {
 
 .data-table-row-clickable {
   cursor: pointer;
+}
+
+.data-table-row-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.data-table-body tr.data-table-row-disabled:hover td {
+  background: none;
 }
 
 .data-table-empty-cell,

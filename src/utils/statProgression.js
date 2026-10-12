@@ -47,6 +47,47 @@ function toNumericStatValue(value) {
  */
 
 /**
+ * Talents that unlock a progression's reduced_xp_cost / reduced_increase_amount:
+ * { [progressionID]: talentID[] }. Owning any listed talent unlocks the reduction.
+ * @type {Record<number, number[]>}
+ */
+export const STAT_PROGRESSION_REDUCING_TALENTS = {
+  11: [7,22,35],
+  12: [13,27],
+  13: [17],
+  3: [71,91],
+  4: [97],
+  5: []
+}
+
+/**
+ * Swaps in a progression's reduced XP cost / increase amount when the character
+ * owns a talent that unlocks it. A null reduced value keeps the normal value.
+ *
+ * @param {StatProgression[]} statProgressions
+ * @param {Array<number | string>} characterTalentIds
+ * @returns {StatProgression[]}
+ */
+export function resolveStatProgressionsForTalents(statProgressions, characterTalentIds) {
+  const ownedTalentIds = new Set(characterTalentIds.map(Number))
+
+  return statProgressions.map((progression) => {
+    const reducingTalentIds =
+      STAT_PROGRESSION_REDUCING_TALENTS[Number(progression.progressionID)] ?? []
+
+    if (!reducingTalentIds.some((talentId) => ownedTalentIds.has(talentId))) {
+      return progression
+    }
+
+    return {
+      ...progression,
+      progressionXPCost: progression.progressionReducedXPCost ?? progression.progressionXPCost,
+      progressionIncAmt: progression.progressionReducedIncAmt ?? progression.progressionIncAmt,
+    }
+  })
+}
+
+/**
  * @param {string} statKey
  * @param {Stat[]} stats
  */

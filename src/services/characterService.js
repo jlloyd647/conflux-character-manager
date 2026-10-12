@@ -7,6 +7,7 @@ import {
   pageStatsToBucketPayload,
   pageStatsToInitialBucketPayload,
 } from '../utils/characterStatBuckets'
+import { getBloodlineSkillXPCost } from '../utils/skillBuy'
 import { ROW_STATUS } from '../constants/rowStatus'
 import { supabase } from './supabaseClient'
 
@@ -56,6 +57,7 @@ const CHARACTER_SKILL_COLUMNS = [
   'character_id',
   'skill_id',
   'approved',
+  'is_free',
   'created_at',
 ].join(', ')
 
@@ -101,6 +103,7 @@ const CHARACTER_TALENT_COLUMNS = [
  *   characterId: number,
  *   skillId: number,
  *   approved: boolean,
+ *   isFree: boolean,
  *   createdAt: string,
  * }} CharacterSkill
  */
@@ -177,9 +180,20 @@ export function toPageStatValues(stats) {
  *   mind: number | null,
  *   strength: number | null,
  *   willpower: number | null,
- * }>} stats */
-function buildCharacterStatsCreatePayload(stats) {
-  return pageStatsToInitialBucketPayload(stats)
+ * }>} stats
+ * @param {Partial<Record<string, number | null | undefined>>} [basePageStats]
+ * @param {{
+ *   statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *   stats?: import('../services/statDefinitionService').Stat[],
+ * }} [referenceData]
+ */
+function buildCharacterStatsCreatePayload(stats, basePageStats = {}, referenceData = {}) {
+  return pageStatsToInitialBucketPayload(
+    stats,
+    basePageStats,
+    referenceData.statProgressions ?? [],
+    referenceData.stats ?? [],
+  )
 }
 
 /**
@@ -287,21 +301,43 @@ async function attachXpSpentToCharacters(characters) {
 }
 
 /**
+ * @param {number} characterId Numeric character business id (`characters.character_id`)
+ * @returns {Promise<number | null>}
+ */
+async function getCharacterBloodlineId(characterId) {
+  const { data, error } = await supabase
+    .from('characters')
+    .select('bloodline_id')
+    .eq('character_id', characterId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data?.bloodline_id ?? null
+}
+
+/**
  * @param {string | number} skillId Numeric skill business id (`skills.skill_id`)
+ * @param {number} characterId Numeric character business id; its bloodline adjusts the cost
  * @returns {Promise<number>}
  */
-async function getSkillXpCost(skillId) {
+async function getSkillXpCost(skillId, characterId) {
   const numericSkillId = Number(skillId)
 
   if (Number.isNaN(numericSkillId)) {
     throw new Error('Invalid skill id')
   }
 
-  const { data, error } = await supabase
-    .from('skills')
-    .select('cost_xp')
-    .eq('skill_id', numericSkillId)
-    .maybeSingle()
+  const [{ data, error }, bloodlineId] = await Promise.all([
+    supabase
+      .from('skills')
+      .select('cost_xp, skill_type_id')
+      .eq('skill_id', numericSkillId)
+      .maybeSingle(),
+    getCharacterBloodlineId(characterId),
+  ])
 
   if (error) {
     throw new Error(error.message)
@@ -311,7 +347,16 @@ async function getSkillXpCost(skillId) {
     throw new Error('Skill not found')
   }
 
-  const xpCost = Number(data.cost_xp ?? 0)
+  const xpCost = Number(
+    getBloodlineSkillXPCost(
+      {
+        costXP: data.cost_xp ?? 0,
+        skillID: numericSkillId,
+        skillTypeID: data.skill_type_id ?? null,
+      },
+      bloodlineId,
+    ),
+  )
 
   return Number.isNaN(xpCost) ? 0 : xpCost
 }
@@ -411,6 +456,7 @@ function mapCharacterSkillRow(row) {
     characterId: row.character_id ?? 0,
     skillId: row.skill_id ?? 0,
     approved: row.approved ?? false,
+    isFree: row.is_free === true,
     createdAt: row.created_at,
   }
 }
@@ -574,6 +620,11 @@ export async function getCharactersByPlayerId(playerId) {
  *     strength: number | null,
  *     willpower: number | null,
  *   }>,
+ *   baseStats?: Partial<Record<string, number | null | undefined>>,
+ *   referenceData?: {
+ *     statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *     stats?: import('../services/statDefinitionService').Stat[],
+ *   },
  * }} input
  * @returns {Promise<Character>}
  */
@@ -586,6 +637,8 @@ export async function createCharacter({
   backstory = '',
   nplContactMethod = null,
   stats,
+  baseStats = {},
+  referenceData = {},
 }) {
   const {
     data: { user },
@@ -626,8 +679,8 @@ export async function createCharacter({
     throw new Error('Character not found')
   }
 
-  if (stats && Object.keys(buildCharacterStatsCreatePayload(stats)).length) {
-    await createCharacterStats(character.characterId, stats)
+  if (stats) {
+    await createCharacterStats(character.characterId, stats, baseStats, referenceData)
   }
 
   const xpSpentByCharacterId = await fetchXpSpentByCharacterIds([
@@ -839,9 +892,19 @@ export async function getCharacterStats(characterId) {
  *   strength: number | null,
  *   willpower: number | null,
  * }>} stats
+ * @param {Partial<Record<string, number | null | undefined>>} [basePageStats] Bloodline minimums
+ * @param {{
+ *   statProgressions?: import('../services/statProgressionService').StatProgression[],
+ *   stats?: import('../services/statDefinitionService').Stat[],
+ * }} [referenceData]
  * @returns {Promise<CharacterStats>}
  */
-export async function createCharacterStats(characterId, stats) {
+export async function createCharacterStats(
+  characterId,
+  stats,
+  basePageStats = {},
+  referenceData = {},
+) {
   const {
     data: { user },
     error: authError,
@@ -856,7 +919,7 @@ export async function createCharacterStats(characterId, stats) {
   }
 
   const numericCharacterId = parseNumericCharacterId(characterId)
-  const payload = buildCharacterStatsCreatePayload(stats)
+  const payload = buildCharacterStatsCreatePayload(stats, basePageStats, referenceData)
 
   if (!Object.keys(payload).length) {
     throw new Error('No stats provided to create.')
@@ -1084,6 +1147,7 @@ export async function addCharacterSkills(characterId, skillId) {
     .insert({
       character_id: numericCharacterId,
       skill_id: numericSkillId,
+      is_free: false,
     })
     .select(CHARACTER_SKILL_COLUMNS)
     .single()
@@ -1098,7 +1162,7 @@ export async function addCharacterSkills(characterId, skillId) {
     throw new Error('Character skill not found')
   }
 
-  const xpCost = await getSkillXpCost(numericSkillId)
+  const xpCost = await getSkillXpCost(numericSkillId, numericCharacterId)
   const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost)
 
   return { characterSkill, characterStats }
@@ -1134,19 +1198,22 @@ export async function removeCharacterSkill(characterId, skillId) {
     throw new Error('Invalid skill id')
   }
 
-  const xpCost = await getSkillXpCost(numericSkillId)
+  const xpCost = await getSkillXpCost(numericSkillId, numericCharacterId)
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('character-skill')
     .delete()
     .eq('character_id', numericCharacterId)
     .eq('skill_id', numericSkillId)
+    .select('is_free')
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return adjustCharacterXpSpent(numericCharacterId, -xpCost)
+  const refundXp = (data ?? []).some((row) => row.is_free !== true) ? xpCost : 0
+
+  return adjustCharacterXpSpent(numericCharacterId, -refundXp)
 }
 
 /**
@@ -1189,9 +1256,10 @@ export async function getCharacterTalents(characterId) {
 /**
  * @param {string | number} characterId Numeric character business id (`characters.character_id`)
  * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
+ * @param {number} [statXpDelta] Change in stat XP from progressions the talent discounts
  * @returns {Promise<{ characterTalent: CharacterTalent, characterStats: CharacterStats }>}
  */
-export async function addCharacterTalent(characterId, talentId) {
+export async function addCharacterTalent(characterId, talentId, statXpDelta = 0) {
   const {
     data: { user },
     error: authError,
@@ -1237,7 +1305,7 @@ export async function addCharacterTalent(characterId, talentId) {
     throw new Error('Character talent not found')
   }
 
-  const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost)
+  const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost + statXpDelta)
 
   return { characterTalent, characterStats }
 }
@@ -1245,9 +1313,10 @@ export async function addCharacterTalent(characterId, talentId) {
 /**
  * @param {string | number} characterId Numeric character business id (`characters.character_id`)
  * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
+ * @param {number} [statXpDelta] Change in stat XP from progressions the talent discounted
  * @returns {Promise<CharacterStats>}
  */
-export async function removeCharacterTalent(characterId, talentId) {
+export async function removeCharacterTalent(characterId, talentId, statXpDelta = 0) {
   const {
     data: { user },
     error: authError,
@@ -1284,5 +1353,5 @@ export async function removeCharacterTalent(characterId, talentId) {
     throw new Error(error.message)
   }
 
-  return adjustCharacterXpSpent(numericCharacterId, -xpCost)
+  return adjustCharacterXpSpent(numericCharacterId, statXpDelta - xpCost)
 }

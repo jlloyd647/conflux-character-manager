@@ -42,12 +42,21 @@ import {
   createEmptyBucketValues,
 } from '../utils/characterStatBuckets'
 import { formatDateToMmDdYyyy } from '../utils/formatDate'
-import { checkSkillPurchase, checkSkillRemoval, checkTalentPurchase, checkTalentRemoval } from '../utils/skillBuy'
+import {
+  checkSkillPurchase,
+  checkSkillRemoval,
+  checkTalentPurchase,
+  checkTalentRemoval,
+  getBloodlineSkillXPCost,
+  isSkillBlockedBySet,
+  isSkillRestrictedForBloodline,
+} from '../utils/skillBuy'
 import {
   calculateCharacterStatsXpCostChange,
   formatStatXpCostDelta,
   getCharacterStatDecreaseStep,
   getCharacterStatIncreaseStep,
+  resolveStatProgressionsForTalents,
 } from '../utils/statProgression'
 import {
   canPurchaseMoreLores,
@@ -71,7 +80,18 @@ const EMPTY_CHARACTER = {
 const skillPickerColumns = [
   { key: 'skillName', header: 'Name' },
   { key: 'skillDescription', header: 'Description' },
-  { key: 'costXP', header: 'XP Cost' },
+  {
+    key: 'displayCostXP',
+    header: 'XP Cost',
+    format: (value, row) =>
+      Number(value) === Number(row.costXP) ? (
+        value
+      ) : (
+        <span className="skill-cost-adjusted">
+          <s className="skill-cost-base">{row.costXP}</s> {value}
+        </span>
+      ),
+  },
   { key: 'costWill', header: 'Will Cost' },
   { key: 'costMind', header: 'Mind Cost' },
 ]
@@ -598,6 +618,14 @@ export default function CharacterSheet({ mode = 'admin' }) {
     characterTalentsState.characterId === character?.characterId
       ? characterTalentsState.talents
       : []
+  const characterStatProgressions = useMemo(
+    () =>
+      resolveStatProgressionsForTalents(
+        statProgressions,
+        characterTalents.map((talent) => talent.talentId),
+      ),
+    [statProgressions, characterTalents],
+  )
   const talentsLoading =
     Boolean(character?.characterId) &&
     !isCreateMode &&
@@ -1033,6 +1061,39 @@ export default function CharacterSheet({ mode = 'admin' }) {
     }
   }
 
+  /**
+   * Stat XP difference between the character's current talents and `nextTalentIds`,
+   * for progressions whose reduced cost / increase amount a talent unlocks.
+   *
+   * @param {number[]} nextTalentIds
+   */
+  function getTalentChangeStatXpDelta(nextTalentIds) {
+    if (!activeBloodline) {
+      return 0
+    }
+
+    const savedStats = resolveCharacterStats(pageStatSource, activeBloodline, null)
+
+    try {
+      return (
+        calculateCharacterStatsXpSpentFromPageStats(
+          savedStats,
+          activeBloodline,
+          resolveStatProgressionsForTalents(statProgressions, nextTalentIds),
+          stats,
+        ) -
+        calculateCharacterStatsXpSpentFromPageStats(
+          savedStats,
+          activeBloodline,
+          characterStatProgressions,
+          stats,
+        )
+      )
+    } catch {
+      return 0
+    }
+  }
+
   async function handleAddTalent(row) {
     if (!character?.characterId || addingTalent) {
       return
@@ -1080,7 +1141,14 @@ export default function CharacterSheet({ mode = 'admin' }) {
 
     try {
       const { characterTalent, characterStats: updatedCharacterStats } =
-        await addCharacterTalent(character.characterId, talentId)
+        await addCharacterTalent(
+          character.characterId,
+          talentId,
+          getTalentChangeStatXpDelta([
+            ...characterTalents.map((entry) => entry.talentId),
+            talentId,
+          ]),
+        )
       const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
         character.characterId,
       )
@@ -1154,6 +1222,11 @@ export default function CharacterSheet({ mode = 'admin' }) {
       const updatedCharacterStats = await removeCharacterTalent(
         character.characterId,
         talentId,
+        getTalentChangeStatXpDelta(
+          characterTalents
+            .map((entry) => entry.talentId)
+            .filter((entryTalentId) => entryTalentId !== talentId),
+        ),
       )
       const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
         character.characterId,
@@ -1453,6 +1526,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
         statsEditing ? draftStats : null,
       )
 
+      const baseStats = resolveCharacterStats({}, bloodline, null)
       const createdCharacter = await createCharacter({
         characterName,
         playerId,
@@ -1460,8 +1534,9 @@ export default function CharacterSheet({ mode = 'admin' }) {
         kingroupId: parseOptionalIntegerField(draftCharacter.kingroupId, 'Kin Group'),
         xp: parseIntegerField(draftCharacter.xp, 'Total XP'),
         stats: characterStatValues,
+        baseStats,
+        referenceData: { statProgressions, stats },
       })
-      const baseStats = resolveCharacterStats({}, bloodline, null)
       const statXpCost = calculateCharacterStatsXpCostChange(
         baseStats,
         characterStatValues,
@@ -1532,8 +1607,16 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const availableSkillOptions = useMemo(() => {
     const assignedSkillIds = new Set(characterSkills.map((skill) => skill.skillId))
 
-    return allSkills.filter((skill) => !assignedSkillIds.has(skill.skillID))
-  }, [allSkills, characterSkills])
+    return allSkills
+      .filter((skill) => !assignedSkillIds.has(skill.skillID))
+      .map((skill) => ({
+        ...skill,
+        displayCostXP: getBloodlineSkillXPCost(skill, activeCharacter?.bloodlineId),
+        purchaseBlocked:
+          isSkillRestrictedForBloodline(skill.skillID, activeCharacter?.bloodlineId) ||
+          isSkillBlockedBySet(characterSkills, skill, activeCharacter?.bloodlineId),
+      }))
+  }, [allSkills, characterSkills, activeCharacter?.bloodlineId])
 
   const availableLoreOptions = useMemo(() => {
     const assignedLoreIds = new Set(characterLores.map((lore) => lore.loreId))
@@ -1647,17 +1730,8 @@ export default function CharacterSheet({ mode = 'admin' }) {
     return calculateDisplayedPageStats(
       characterStats.buckets ?? createEmptyBucketValues(),
       activeBloodline,
-      statProgressions,
-      stats,
     )
-  }, [
-    isCreateMode,
-    draftCharacter,
-    characterStats,
-    activeBloodline,
-    statProgressions,
-    stats,
-  ])
+  }, [isCreateMode, draftCharacter, characterStats, activeBloodline])
 
   const currentStats = useMemo(
     () =>
@@ -1678,13 +1752,13 @@ export default function CharacterSheet({ mode = 'admin' }) {
       return calculateCharacterStatsXpCostChange(
         statsEditBase,
         draftStats,
-        statProgressions,
+        characterStatProgressions,
         stats,
       )
     } catch {
       return 0
     }
-  }, [statsEditing, statsEditBase, draftStats, statProgressions, stats])
+  }, [statsEditing, statsEditBase, draftStats, characterStatProgressions, stats])
 
   const displayedStatXpSpent = useMemo(() => {
     if (!activeBloodline) {
@@ -1695,13 +1769,13 @@ export default function CharacterSheet({ mode = 'admin' }) {
       return calculateCharacterStatsXpSpentFromPageStats(
         currentStats,
         activeBloodline,
-        statProgressions,
+        characterStatProgressions,
         stats,
       )
     } catch {
       return 0
     }
-  }, [currentStats, activeBloodline, statProgressions, stats])
+  }, [currentStats, activeBloodline, characterStatProgressions, stats])
 
   function startStatsEditing() {
     setStatsEditBase(currentStats)
@@ -1747,7 +1821,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
       const xpDelta = calculateCharacterStatsXpCostChange(
         statsEditBase,
         draftStats,
-        statProgressions,
+        characterStatProgressions,
         stats,
       )
       const { updatedStats } = await updateCharacterStatsAndXpSpent(
@@ -1755,7 +1829,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
           draftStats,
           xpDelta,
           statsEditBase,
-          { statProgressions, stats },
+          { statProgressions: characterStatProgressions, stats },
         )
 
       setCharacterStatsState({
@@ -2071,7 +2145,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
                         getCharacterStatIncreaseStep(
                           stat.key,
                           currentValue,
-                          statProgressions,
+                          characterStatProgressions,
                           stats,
                         )
                       }
@@ -2080,7 +2154,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
                         getCharacterStatDecreaseStep(
                           stat.key,
                           currentValue,
-                          statProgressions,
+                          characterStatProgressions,
                           stats,
                           activeBloodline?.[stat.minKey] ?? 0,
                         )
@@ -2213,6 +2287,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
                       : 'No skills available to add.'
                   }
                   onRowClick={handleAddSkill}
+                  isRowDisabled={(skill) => skill.purchaseBlocked}
                 />
               )
             ) : showSkillRemover ? (

@@ -7,6 +7,8 @@ const STAT_PROGRESSION_COLUMNS = [
   'max_value',
   'xp_cost',
   'increase_amount',
+  'reduced_xp_cost',
+  'reduced_increase_amount',
 ].join(', ')
 
 /**
@@ -17,6 +19,8 @@ const STAT_PROGRESSION_COLUMNS = [
  *   progressionMaxVal: number | null,
  *   progressionXPCost: number | null,
  *   progressionIncAmt: number | null,
+ *   progressionReducedXPCost: number | null,
+ *   progressionReducedIncAmt: number | null,
  * }} StatProgression
  */
 
@@ -44,6 +48,8 @@ function mapStatProgressionRow(row) {
     progressionMaxVal: mapNumericField(row.max_value),
     progressionXPCost: mapNumericField(row.xp_cost),
     progressionIncAmt: mapNumericField(row.increase_amount),
+    progressionReducedXPCost: mapNumericField(row.reduced_xp_cost),
+    progressionReducedIncAmt: mapNumericField(row.reduced_increase_amount),
   }
 }
 

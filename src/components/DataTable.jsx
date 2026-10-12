@@ -72,6 +72,7 @@ export default function DataTable({
   link,
   linkId,
   onRowClick,
+  isRowDisabled,
 }) {
   const navigate = useNavigate()
   const resolvedColumns = resolveColumns(data, columns)
@@ -125,22 +126,34 @@ export default function DataTable({
               </td>
             </tr>
           ) : (
-            data.map((row, rowIndex) => (
-              <tr
-                key={row.id ?? row.skillID ?? rowIndex}
-                className={isRowClickable ? 'data-table-row-clickable' : undefined}
-                onClick={isRowClickable ? () => handleRowActivate(row) : undefined}
-                onKeyDown={isRowClickable ? (event) => handleRowKeyDown(event, row) : undefined}
-                tabIndex={isRowClickable ? 0 : undefined}
-                role={isRowClickable ? 'button' : undefined}
-              >
-                {resolvedColumns.map((column) => (
-                  <td key={column.key}>
-                    {getCellValue(row, column, column.fallback ?? fallback)}
-                  </td>
-                ))}
-              </tr>
-            ))
+            data.map((row, rowIndex) => {
+              const rowDisabled = Boolean(isRowDisabled?.(row))
+              const rowClickable = isRowClickable && !rowDisabled
+
+              return (
+                <tr
+                  key={row.id ?? row.skillID ?? rowIndex}
+                  className={
+                    rowDisabled
+                      ? 'data-table-row-disabled'
+                      : rowClickable
+                        ? 'data-table-row-clickable'
+                        : undefined
+                  }
+                  onClick={rowClickable ? () => handleRowActivate(row) : undefined}
+                  onKeyDown={rowClickable ? (event) => handleRowKeyDown(event, row) : undefined}
+                  tabIndex={rowClickable ? 0 : undefined}
+                  role={rowClickable ? 'button' : undefined}
+                  aria-disabled={rowDisabled || undefined}
+                >
+                  {resolvedColumns.map((column) => (
+                    <td key={column.key}>
+                      {getCellValue(row, column, column.fallback ?? fallback)}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })
           )}
         </tbody>
       </table>

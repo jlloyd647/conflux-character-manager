@@ -74,6 +74,7 @@ character-skill:
 character_id: int8
 skill_id: int4
 approved: boolean
+is_free: boolean (true when granted for free by the bloodline / kingroup triggers)
 created_at: datetime
 
 character_talent:
