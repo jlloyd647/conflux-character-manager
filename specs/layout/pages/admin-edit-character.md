@@ -61,6 +61,7 @@ If this check fails, a message should be displayed and the skill or talent shoul
 * is that talent or skill a part of a rank or level that is required for a talent or skill to be added. If so, it can only be removed if the player_skill_prereq doesn't drop below the requirements for the prereq_id
 
 29 - [x] - Filter out the skills a character already has when adding a new skill.
+30 - [x] - Split the page into Character Info and Character Sheet tabs as defined by sections/character-sheet-tab.md. All existing sections move into the Character Info tab unchanged.
 
 
 

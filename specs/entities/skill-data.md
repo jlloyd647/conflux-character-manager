@@ -16,6 +16,7 @@ Skills are abilities that a character can purchase with XP to do certain things 
 - cost_xp: int2
 - prereq_skill_id: int8
 - prereq_id: int8
+- hidden: bool
 
 ### Skills will map to a more javascript friendly form when in the application
 
@@ -27,6 +28,7 @@ Skills are abilities that a character can purchase with XP to do certain things 
 - cost_xp | costXP
 - prereq_skill_id | prereqSkillID
 - prereq_id | prereqID
+- hidden | hidden
 
 ## Field Explanation
 
@@ -38,12 +40,14 @@ cost_mind: Resource cost for the player when using the skill
 cost_xp: Resource cost for hte player to gain the skill
 prereq_skill_id: Numeric skill ID of another skill required before this skill can be purchased
 prereq_id: Numeric identifier for rank-based prerequisite requirements
+hidden: When true, the skill is left out of the list of purchasable skills on the character page. Characters that already own it still see it, and the triggers can still grant it for free
 
 ## Feature Updates
 
 1 - [x] - Add and accound for the following new table columns: prereq_skill_id, prereq_id
 2 - [x] - Remove the id - I have replaced it with the skill_id as there is no need for two different IDs
 3 - [x] - Remove the created_at field.
+4 - [x] - Add the hidden column; hidden skills are not shown in the list of purchasable skills
 
 ## Template for copy paste to agent - Ignore this section
 

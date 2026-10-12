@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import NumericField from './NumericField'
 import DataTable from './DataTable'
 import DropdownField from './DropdownField'
@@ -48,7 +48,9 @@ import {
   checkTalentPurchase,
   checkTalentRemoval,
   getBloodlineSkillXPCost,
+  getTalentGrantedSkillID,
   isSkillBlockedBySet,
+  isSkillDebarredBySkill,
   isSkillRestrictedForBloodline,
 } from '../utils/skillBuy'
 import {
@@ -119,6 +121,13 @@ const lorePickerColumns = [{ key: 'loreName', header: 'Lore Name' }]
 const formatPickerColumns = [{ key: 'formatName', header: 'Format Name' }]
 
 const SHOW_FORMATS_SECTION = false
+
+const CHARACTER_SHEET_PDF_URL = `${import.meta.env.BASE_URL}pdfs/ConfluxCharacterSheet20.pdf`
+
+const CHARACTER_TABS = [
+  { id: 'info', label: 'Character Info' },
+  { id: 'sheet', label: 'Character Sheet' },
+]
 
 const CHARACTER_STAT_FIELDS = [
   { key: 'vitality', label: 'Vitality', minKey: 'minVitality', maxKey: 'maxVitality' },
@@ -231,6 +240,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const params = useParams()
   const recordId = mode === 'admin' ? params.id : params.characterId
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, userType, loading: authLoading } = useAuth()
   const isPlayerMode = mode === 'player'
   const isCreateMode = !isPlayerMode && recordId === 'new'
@@ -960,6 +970,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
       characterSkillPrereq,
       prereqs,
       xpSpent: characterStats?.statXPSpent ?? 0,
+      allSkills,
     })
 
     if (!purchaseCheck.valid) {
@@ -1102,6 +1113,19 @@ export default function CharacterSheet({ mode = 'admin' }) {
     }
   }
 
+  async function refreshSkillsIfTalentGrantsSkill(talentId) {
+    if (getTalentGrantedSkillID(talentId) === null) {
+      return
+    }
+
+    const skills = await getCharacterSkills(character.characterId)
+    setCharacterSkillsState({
+      characterId: character.characterId,
+      skills,
+      error: '',
+    })
+  }
+
   async function handleAddTalent(row) {
     if (!character?.characterId || addingTalent) {
       return
@@ -1160,6 +1184,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
       const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
         character.characterId,
       )
+      await refreshSkillsIfTalentGrantsSkill(talentId)
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
@@ -1239,6 +1264,7 @@ export default function CharacterSheet({ mode = 'admin' }) {
       const updatedCharacterSkillPrereq = await getCharacterSkillPrereq(
         character.characterId,
       )
+      await refreshSkillsIfTalentGrantsSkill(talentId)
       setCharacterStatsState((previous) => ({
         ...previous,
         characterId: character.characterId,
@@ -1616,13 +1642,14 @@ export default function CharacterSheet({ mode = 'admin' }) {
     const assignedSkillIds = new Set(characterSkills.map((skill) => skill.skillId))
 
     return allSkills
-      .filter((skill) => !assignedSkillIds.has(skill.skillID))
+      .filter((skill) => !skill.hidden && !assignedSkillIds.has(skill.skillID))
       .map((skill) => ({
         ...skill,
         displayCostXP: getBloodlineSkillXPCost(skill, activeCharacter?.bloodlineId),
         purchaseBlocked:
           isSkillRestrictedForBloodline(skill.skillID, activeCharacter?.bloodlineId) ||
-          isSkillBlockedBySet(characterSkills, skill, activeCharacter?.bloodlineId),
+          isSkillBlockedBySet(characterSkills, skill, activeCharacter?.bloodlineId) ||
+          isSkillDebarredBySkill(characterSkills, skill.skillID),
       }))
   }, [allSkills, characterSkills, activeCharacter?.bloodlineId])
 
@@ -1933,15 +1960,32 @@ export default function CharacterSheet({ mode = 'admin' }) {
   const pageTitle = isCreateMode
     ? 'Create Character'
     : isPlayerMode
-      ? 'Character'
+      ? character?.characterName || 'Character'
       : 'Edit Character'
+
+  const showTabs =
+    !isCreateMode && !authLoading && !loading && showForm && !accessDenied && Boolean(character)
+  const activeTab = showTabs && searchParams.get('tab') === 'sheet' ? 'sheet' : 'info'
+
+  function selectTab(tabId) {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        next.set('tab', tabId)
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   return (
     <div className="edit-page">
-      <h1>{pageTitle}</h1>
-      <p className="edit-page-back">
-        <Link to={backLink}>{backLabel}</Link>
-      </p>
+      <div className="character-page-header">
+        <h1>{pageTitle}</h1>
+        <Link className="character-page-back" to={backLink}>
+          {backLabel}
+        </Link>
+      </div>
 
       {error ? (
         <p className="list-page-error" role="alert">
@@ -1961,9 +2005,35 @@ export default function CharacterSheet({ mode = 'admin' }) {
         </p>
       ) : null}
 
+      {showTabs ? (
+        <div className="character-tabs" role="tablist" aria-label="Character views">
+          {CHARACTER_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`character-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`character-tabpanel-${tab.id}`}
+              className={
+                activeTab === tab.id ? 'character-tab character-tab-active' : 'character-tab'
+              }
+              onClick={() => selectTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        id="character-tabpanel-info"
+        role={showTabs ? 'tabpanel' : undefined}
+        aria-labelledby={showTabs ? 'character-tab-info' : undefined}
+        hidden={activeTab !== 'info'}
+      >
       {!authLoading && !loading && showForm && !accessDenied && isPlayerMode && character ? (
         <section className="dashboard-section">
-          <h2 className="dashboard-section-title">Character Info</h2>
           <div className="dashboard-card dashboard-profile-card">
             <div className="dashboard-profile-grid">
               <ReadOnlyField label="Character ID" value={character.characterId} />
@@ -2858,6 +2928,34 @@ export default function CharacterSheet({ mode = 'admin' }) {
             )}
           </div>
         </section>
+      ) : null}
+      </div>
+
+      {showTabs ? (
+        <div
+          id="character-tabpanel-sheet"
+          role="tabpanel"
+          aria-labelledby="character-tab-sheet"
+          hidden={activeTab !== 'sheet'}
+        >
+          {activeTab === 'sheet' ? (
+            <section className="dashboard-section">
+              <div className="dashboard-card character-sheet-card">
+                <iframe
+                  className="character-sheet-frame"
+                  src={CHARACTER_SHEET_PDF_URL}
+                  title="Character sheet PDF"
+                />
+                <p className="character-sheet-fallback">
+                  PDF not showing?{' '}
+                  <a href={CHARACTER_SHEET_PDF_URL} target="_blank" rel="noreferrer">
+                    Open the character sheet in a new tab
+                  </a>
+                </p>
+              </div>
+            </section>
+          ) : null}
+        </div>
       ) : null}
 
       {isCreateMode && showForm && !accessDenied ? (

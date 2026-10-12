@@ -11,6 +11,7 @@ const SKILL_COLUMNS = [
   'prereq_id',
   'skill_type_id',
   'rank',
+  'hidden',
 ].join(', ')
 
 /**
@@ -25,6 +26,7 @@ const SKILL_COLUMNS = [
  *   prereqID: number | null,
  *   skillTypeID: number | null,
  *   skillRank: number | null,
+ *   hidden: boolean,
  * }} Skill
  */
 
@@ -56,6 +58,7 @@ function mapSkillRow(row) {
     prereqID: row.prereq_id ?? null,
     skillTypeID: mapNumericField(row.skill_type_id),
     skillRank: mapNumericField(row.rank),
+    hidden: row.hidden === true,
   }
 }
 

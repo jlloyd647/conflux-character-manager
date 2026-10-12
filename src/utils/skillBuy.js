@@ -27,6 +27,27 @@ const BLOODLINE_RESTRICTED_SKILLS = {
 }
 
 /**
+ * Skills that debar other skills: { [skillID]: skillID[] }.
+ * Owning the key skill (purchased or free) blocks purchasing the listed skills.
+ * The block works both ways: owning a listed skill also blocks purchasing the key skill.
+ * @type {Record<number, number[]>}
+ */
+const SKILL_DEBARRED_SKILLS = {
+  1152: [1140],
+  1153: [1143],
+  1154: [1141],
+  1155: [1144],
+  1156: [1142],
+  1157: [1145],
+  1158: [1143],
+  1159: [1146],
+  1160: [1144],
+  1161: [1147],
+  1162: [1145],
+  1163: [1148],
+}
+
+/**
  * @typedef {{
  *   name: string,
  *   skillIDs: number[],
@@ -45,19 +66,19 @@ const BLOODLINE_RESTRICTED_SKILLS = {
 const EXCLUSIVE_SKILL_SETS = [
   {
     name: 'Level 1 Format Specializations',
-    skillIDs: [1004, 1007, 1010],
+    skillIDs: [1140, 1143, 1146, 1149],
     maxOwned: 1,
     bloodlineMaxOwned: {},
   },
   {
     name: 'Level 2 Format Specializations',
-    skillIDs: [1005, 1008, 1011],
+    skillIDs: [1141, 1144, 1147, 1150],
     maxOwned: 1,
     bloodlineMaxOwned: {},
   },
   {
     name: 'Level 3 Format Specializations',
-    skillIDs: [1006, 1009, 1012],
+    skillIDs: [1142, 1145, 1148, 1151],
     maxOwned: 1,
     bloodlineMaxOwned: {},
   },
@@ -83,7 +104,7 @@ const MIN_BLOODLINE_ADJUSTED_XP_COST = 1
 /**
  * XP cost adjustments per bloodline: { [bloodlineID]: BloodlineSkillXPModifier[] }.
  * Each rule matches by skillID or skillTypeID; a skillID rule takes precedence over a skillTypeID rule.
- * multiplier is applied first (rounded down), then delta is added.
+ * multiplier is applied first (rounded up), then delta is added.
  * The result never goes below MIN_BLOODLINE_ADJUSTED_XP_COST; skills with a base cost of 0 stay free.
  * @type {Record<number, BloodlineSkillXPModifier[]>}
  */
@@ -120,6 +141,61 @@ const BLOODLINE_SKILL_XP_MODIFIERS = {
 }
 
 /**
+ * Skills a talent grants for free: { [talentID]: skillID }.
+ * Must match public.talent_granted_skill_id() in supabase/sql/add-talent-skill.sql, which is what
+ * actually grants and removes the free skill; this copy drives the app's checks.
+ * @type {Record<number, number>}
+ */
+export const TALENT_GRANTED_SKILLS = {
+  // 0: 0, // Placeholder - Talent name: grants Skill name
+  64: 1140, // Elementalist Level 1 Alchemy
+  65: 1143, // Elementalist Level 1 Enchantment
+  73: 1141, // Elementalist Level 2 Alchemy
+  74: 1144, // Elementalist Level 2 Enchantment
+  78: 1142, // Elementalist Level 3 Alchemy
+  79: 1145, // Elementalist Level 3 Enchantment
+  85: 1143, // Fae Level 1 Enchantment
+  86: 1147, // Fae Level 1 Ritualism
+  93: 1144, // Fae Level 1 Enchantment
+  94: 1148, // Fae Level 2 Ritualism
+  98: 1145, // Fae Level 1 Enchantment
+  99: 1149  // Fae Level 3 Ritualism
+}
+
+/**
+ * @param {number | string | null | undefined} talentID
+ * @returns {number | null}
+ */
+export function getTalentGrantedSkillID(talentID) {
+  const skillID = TALENT_GRANTED_SKILLS[Number(talentID)]
+
+  return skillID === undefined ? null : Number(skillID)
+}
+
+/**
+ * @param {CharacterTalent[]} characterTalents
+ * @param {number} skillID
+ * @param {Talent[]} allTalents
+ * @returns {Talent | null}
+ */
+function findOwnedTalentGrantingSkill(characterTalents, skillID, allTalents) {
+  const characterTalent = characterTalents.find(
+    (entry) => getTalentGrantedSkillID(entry.talentId) === Number(skillID),
+  )
+
+  if (!characterTalent) {
+    return null
+  }
+
+  return (
+    allTalents.find((talent) => Number(talent.talentID) === Number(characterTalent.talentId)) ?? {
+      talentID: Number(characterTalent.talentId),
+      talentName: String(characterTalent.talentId),
+    }
+  )
+}
+
+/**
  * @param {Pick<Skill, 'costXP' | 'skillID' | 'skillTypeID'>} skill
  * @param {number | string | null | undefined} bloodlineID
  * @returns {number | null}
@@ -143,7 +219,7 @@ export function getBloodlineSkillXPCost(skill, bloodlineID) {
     return baseCost
   }
 
-  const multiplied = Math.floor(baseCost * (rule.multiplier ?? 1))
+  const multiplied = Math.ceil(baseCost * (rule.multiplier ?? 1))
 
   return Math.max(MIN_BLOODLINE_ADJUSTED_XP_COST, multiplied + (rule.delta ?? 0))
 }
@@ -252,6 +328,56 @@ export function checkBloodlineRestriction(character, skill) {
   return {
     valid: false,
     message: `${skill.skillName || `Skill ${skill.skillID}`} cannot be purchased by this bloodline.`,
+  }
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {number | string} skillID
+ * @returns {number | null} The owned skillID that debars skillID, or null
+ */
+function findDebarringSkillID(characterSkills, skillID) {
+  const numericSkillID = Number(skillID)
+  const ownedSkillIDs = characterSkills.map((characterSkill) => Number(characterSkill.skillId))
+
+  return (
+    ownedSkillIDs.find(
+      (ownedSkillID) =>
+        (SKILL_DEBARRED_SKILLS[ownedSkillID] ?? []).includes(numericSkillID) ||
+        (SKILL_DEBARRED_SKILLS[numericSkillID] ?? []).includes(ownedSkillID),
+    ) ?? null
+  )
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {number | string} skillID
+ * @returns {boolean}
+ */
+export function isSkillDebarredBySkill(characterSkills, skillID) {
+  return findDebarringSkillID(characterSkills, skillID) !== null
+}
+
+/**
+ * @param {CharacterSkill[]} characterSkills
+ * @param {Skill} skill
+ * @param {Skill[]} [allSkills]
+ * @returns {SkillBuyCheckResult}
+ */
+export function checkSkillDebarment(characterSkills, skill, allSkills = []) {
+  const debarringSkillID = findDebarringSkillID(characterSkills, skill.skillID)
+
+  if (debarringSkillID === null) {
+    return { valid: true, message: '' }
+  }
+
+  const debarringSkillName =
+    allSkills.find((entry) => Number(entry.skillID) === debarringSkillID)?.skillName ||
+    `Skill ${debarringSkillID}`
+
+  return {
+    valid: false,
+    message: `${skill.skillName || `Skill ${skill.skillID}`} cannot be purchased with ${debarringSkillName}.`,
   }
 }
 
@@ -401,6 +527,7 @@ export function checkTalentRank(characterSkillPrereq, talent, prereqs) {
  *   characterSkillPrereq?: CharacterSkillPrereq | null,
  *   prereqs: Prereq[],
  *   xpSpent?: number | null,
+ *   allSkills?: Skill[],
  * }} input
  * @returns {SkillBuyCheckResult}
  */
@@ -411,9 +538,11 @@ export function checkSkillPurchase({
   characterSkillPrereq = null,
   prereqs,
   xpSpent,
+  allSkills = [],
 }) {
   const checks = [
     checkBloodlineRestriction(character, skill),
+    checkSkillDebarment(characterSkills, skill, allSkills),
     checkExclusiveSkillSet(characterSkills, skill, character.bloodlineId),
     checkXPCost(character, skill, xpSpent),
     checkSkillPrereq(characterSkills, skill),
@@ -621,6 +750,54 @@ export function checkSkillRemoval(
   allTalents,
 ) {
   const numericId = Number(skillIdToRemove)
+  const grantingTalent = findOwnedTalentGrantingSkill(characterTalents, numericId, allTalents)
+
+  if (grantingTalent) {
+    const skillName =
+      allSkills.find((entry) => Number(entry.skillID) === numericId)?.skillName ||
+      String(numericId)
+
+    return {
+      valid: false,
+      message: `Cannot remove ${skillName}. It comes from the ${grantingTalent.talentName} talent; remove the talent instead.`,
+    }
+  }
+
+  return checkSkillRemovalDependencies(
+    characterSkills,
+    numericId,
+    characterTalents,
+    characterSkillPrereq,
+    prereqs,
+    allSkills,
+    allTalents,
+    'skill',
+  )
+}
+
+/**
+ * Prereq checks for removing a skill, whether removed directly or along with the talent that granted it.
+ *
+ * @param {CharacterSkill[]} characterSkills
+ * @param {number} numericId
+ * @param {CharacterTalent[]} characterTalents
+ * @param {CharacterSkillPrereq | null | undefined} characterSkillPrereq
+ * @param {Prereq[]} prereqs
+ * @param {Skill[]} allSkills
+ * @param {Talent[]} allTalents
+ * @param {string} itemLabel
+ * @returns {SkillBuyCheckResult}
+ */
+function checkSkillRemovalDependencies(
+  characterSkills,
+  numericId,
+  characterTalents,
+  characterSkillPrereq,
+  prereqs,
+  allSkills,
+  allTalents,
+  itemLabel,
+) {
   const dependents = []
 
   for (const characterSkill of characterSkills) {
@@ -641,7 +818,7 @@ export function checkSkillRemoval(
     return {
       valid: false,
       message: formatPrereqRemovalMessage(
-        'skill',
+        itemLabel,
         dependents.map((skill) => skill.skillName || String(skill.skillID)),
       ),
     }
@@ -662,7 +839,7 @@ export function checkSkillRemoval(
     characterTalents,
     allSkills,
     allTalents,
-    'skill',
+    itemLabel,
   )
 }
 
@@ -705,6 +882,37 @@ export function checkTalentRemoval(
         'talent',
         skillPrereqDependents.map((skill) => skill.skillName || String(skill.skillID)),
       ),
+    }
+  }
+
+  const grantedSkillID = getTalentGrantedSkillID(numericTalentId)
+  const remainingTalents = characterTalents.filter(
+    (entry) => Number(entry.talentId) !== numericTalentId,
+  )
+  const losesGrantedSkill =
+    grantedSkillID !== null &&
+    characterSkills.some(
+      (entry) => Number(entry.skillId) === grantedSkillID && entry.isFree,
+    ) &&
+    !findOwnedTalentGrantingSkill(remainingTalents, grantedSkillID, allTalents)
+
+  if (losesGrantedSkill) {
+    const grantedSkillName =
+      allSkills.find((entry) => Number(entry.skillID) === grantedSkillID)?.skillName ||
+      String(grantedSkillID)
+    const grantedSkillCheck = checkSkillRemovalDependencies(
+      characterSkills,
+      grantedSkillID,
+      remainingTalents,
+      characterSkillPrereq,
+      prereqs,
+      allSkills,
+      allTalents,
+      `talent (it grants ${grantedSkillName})`,
+    )
+
+    if (!grantedSkillCheck.valid) {
+      return grantedSkillCheck
     }
   }
 

@@ -6,9 +6,15 @@ This page exists to allow player users to view and edit their character updating
 
 ## Layout
 
-The layout will display multiple sections that give players a handful of tools. Each section will occupy it's own space.
+The page is split into two tabs, Character Info and Character Sheet, as defined in layout/sections/character-sheet-tab.md. Character Info is the default tab.
 
-## Sections
+The Character Info tab displays multiple sections that give players a handful of tools. Each section will occupy it's own space.
+
+The Character Sheet tab will display the character's auto-filled PDF character sheet. Until the PDF template exists it displays a placeholder.
+
+## Tabs
+
+### Character Info (default)
 
 - Character Info - Uneditable fields displaying the character ID, name, total XP, spent XP, bloodline, kin group, and the date created (mm/dd/yy)
 - Character Stats - Editable stats similar to that on the admin edit character sheet
@@ -17,6 +23,10 @@ The layout will display multiple sections that give players a handful of tools. 
 - Bloodline Gifts- Editable gifts similar to that on the admin edit character sheet
 - Bloodline Banes- Editable banes similar to that on the admin edit character sheet
 - Bloodline Curses- Editable curses similar to that on the admin edit character sheet
+
+### Character Sheet
+
+- Character Sheet - Auto-filled PDF of the character sheet, as defined in layout/sections/character-sheet-tab.md. Placeholder until the PDF template exists.
 
 ## Feature Updates
 
@@ -33,6 +43,10 @@ The layout will display multiple sections that give players a handful of tools. 
 11 - [x] - Hide and disable the Remove Skill button if a character is not in status 7 or 8.
 12 - [x] - Hide and disable the Remove Talent, Remove Lore, and the "reduce" button for character stats, Vitality, Mind, Strength, and Willpower button if a character is not in status 7 or 8.
 13 - [x] - I need a new section as defined by sections/formats.md - This section should go above lores.
+14 - [x] - Split the page into Character Info and Character Sheet tabs as defined by sections/character-sheet-tab.md. All existing sections move into the Character Info tab unchanged.
+15 - [x] - Move the "Back to Dashboard" link onto the same line as the page title, aligned to the right.
+16 - [x] - Remove the "Character Info" heading above the character info card.
+17 - [x] - Page title shows the character's name for players (falls back to "Character" while loading). Admins see "Edit Character".
 
 ## Bug Fixes
 

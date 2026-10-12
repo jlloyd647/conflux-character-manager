@@ -7,7 +7,7 @@ import {
   pageStatsToBucketPayload,
   pageStatsToInitialBucketPayload,
 } from '../utils/characterStatBuckets'
-import { getBloodlineSkillXPCost } from '../utils/skillBuy'
+import { getBloodlineSkillXPCost, getTalentGrantedSkillID } from '../utils/skillBuy'
 import { ROW_STATUS } from '../constants/rowStatus'
 import { supabase } from './supabaseClient'
 
@@ -1254,6 +1254,37 @@ export async function getCharacterTalents(characterId) {
 }
 
 /**
+ * XP to refund when a talent grants a skill the character already paid for.
+ * The add-talent-skill trigger converts that skill to free; the refund must
+ * match the bloodline-adjusted price the app charged, so it is computed here.
+ *
+ * @param {number} characterId
+ * @param {number} talentId
+ * @returns {Promise<number>}
+ */
+async function getGrantedSkillRefund(characterId, talentId) {
+  const grantedSkillId = getTalentGrantedSkillID(talentId)
+
+  if (grantedSkillId === null) {
+    return 0
+  }
+
+  const { data, error } = await supabase
+    .from('character-skill')
+    .select('is_free')
+    .eq('character_id', characterId)
+    .eq('skill_id', grantedSkillId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const ownsPaidCopy = (data ?? []).some((row) => row.is_free !== true)
+
+  return ownsPaidCopy ? getSkillXpCost(grantedSkillId, characterId) : 0
+}
+
+/**
  * @param {string | number} characterId Numeric character business id (`characters.character_id`)
  * @param {string | number} talentId Numeric talent business id (`talents.talent_id`)
  * @param {number} [statXpDelta] Change in stat XP from progressions the talent discounts
@@ -1285,6 +1316,7 @@ export async function addCharacterTalent(characterId, talentId, statXpDelta = 0)
   }
 
   const xpCost = await getTalentXpCost(numericTalentId)
+  const grantedSkillRefund = await getGrantedSkillRefund(numericCharacterId, numericTalentId)
 
   const { data, error } = await supabase
     .from('character_talent')
@@ -1305,7 +1337,10 @@ export async function addCharacterTalent(characterId, talentId, statXpDelta = 0)
     throw new Error('Character talent not found')
   }
 
-  const characterStats = await adjustCharacterXpSpent(numericCharacterId, xpCost + statXpDelta)
+  const characterStats = await adjustCharacterXpSpent(
+    numericCharacterId,
+    xpCost + statXpDelta - grantedSkillRefund,
+  )
 
   return { characterTalent, characterStats }
 }

@@ -544,6 +544,73 @@ code {
   margin: 0 0 1.5rem;
 }
 
+.character-page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.character-page-header h1 {
+  margin: 0;
+}
+
+.character-page-back {
+  flex-shrink: 0;
+}
+
+.character-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.character-tab {
+  padding: 0.625rem 1rem;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--heading);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.character-tab:hover {
+  color: var(--text-h);
+}
+
+.character-tab-active {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+}
+
+.character-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.character-sheet-card {
+  padding: 0.5rem;
+}
+
+.character-sheet-frame {
+  display: block;
+  width: 100%;
+  height: 80vh;
+  border: none;
+}
+
+.character-sheet-fallback {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
 .edit-page-create-button {
   margin-top: 1rem;
   border: none;

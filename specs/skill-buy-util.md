@@ -23,7 +23,7 @@ getBloodlineSkillXPCost: This function returns a skill's XP cost after applying 
 - Bloodline restrictions only block new purchases; skills a character already owns are left alone when their bloodline changes
 - Bloodline XP cost changes are kept in the BLOODLINE_SKILL_XP_MODIFIERS constant in src/utils/skillBuy.js ({ bloodlineID: [rule, ...] })
 - Each rule matches a skill by skillID or skillTypeID; if both a skillID rule and a skillTypeID rule match, the skillID rule wins
-- A rule can have a multiplier (e.g. 0.5 for half cost, rounded down), a fixed delta (e.g. 1, 2, -3), or both; the multiplier is applied first, then the delta
+- A rule can have a multiplier (e.g. 0.5 for half cost, rounded up), a fixed delta (e.g. 1, 2, -3), or both; the multiplier is applied first, then the delta
 - A bloodline-adjusted cost never goes below 1 XP
 - Skills with a base cost of 0 stay free; bloodline rules do not apply to them
 - Removing a skill refunds the adjusted cost for the character's current bloodline
@@ -86,6 +86,41 @@ Database - telling purchased skills apart from free skills:
 - [x] Map is_free | isFree on CharacterSkill in characterService; purchases insert is_free = false
 - [x] Only rows where is_free is not true count toward exclusive set limits (NULL is treated as purchased)
 - [x] Removing an is_free skill refunds 0 XP, since no XP was paid for it
+
+### Skill debarments
+
+Owning certain skills debars the character from purchasing certain other skills.
+
+```js
+const SKILL_DEBARRED_SKILLS = {
+  // skillID: [debarred skillID, ...]
+}
+```
+
+- [x] SKILL_DEBARRED_SKILLS is hardcoded in skillBuy.js, like BLOODLINE_RESTRICTED_SKILLS
+- [x] The block works both ways: owning the key skill blocks the listed skills, and owning a listed skill blocks the key skill
+- [x] Any owned skill counts, purchased or free
+- [x] checkSkillDebarment(characterSkills, skill, allSkills): added to checkSkillPurchase; message: "{skill} cannot be purchased with {owned skill}."
+- [x] isSkillDebarredBySkill(characterSkills, skillID): debarred skills are greyed out and not clickable in the skill picker, the same as bloodline-restricted skills
+- Free skills granted by the bloodline / kingroup / talent triggers are not blocked by debarments
+
+### Talent-granted skills
+
+Some talents give the character one skill for 0 XP. Spec: specs/sql/add_talent_skill.md
+
+```js
+export const TALENT_GRANTED_SKILLS = {
+  // talentID: skillID
+}
+```
+
+- [x] TALENT_GRANTED_SKILLS is hardcoded in skillBuy.js and must match public.talent_granted_skill_id() in supabase/sql/add-talent-skill.sql
+- [x] getTalentGrantedSkillID(talentID): returns the granted skillID or null
+- [x] The add-talent-skill trigger adds the skill with is_free = true when the talent is added, and removes it when the talent is removed
+- [x] If the character already paid for the skill, adding the talent refunds that skill's XP cost (bloodline-adjusted) in the same XP change as the talent cost
+- [x] checkSkillRemoval blocks removing a skill that an owned talent grants: "Cannot remove {skill}. It comes from the {talent} talent; remove the talent instead."
+- [x] checkTalentRemoval also runs the skill prereq and rank checks for the granted skill, so a talent cannot be removed if its free skill is a prereq for something the character owns
+- [x] The character page reloads its skills after adding or removing a talent that grants a skill
 
 ## Future
 
